@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>百度网盘批量转存工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .log-container { max-height: 300px; overflow-y: auto; }
+        .progress-bar { transition: width 0.3s ease; }
+        
+        /* 深色模式 */
+        .dark body { background-color: #1a1a2e; color: #e2e8f0; }
+        .dark .bg-white { background-color: #16213e; }
+        .dark .bg-gray-100 { background-color: #0f0f23; }
+        .dark .bg-gray-50 { background-color: #1a1a2e; }
+        .dark .text-gray-800 { color: #e2e8f0; }
+        .dark .text-gray-700 { color: #cbd5e1; }
+        .dark .text-gray-600 { color: #94a3b8; }
+        .dark .border-gray-300 { border-color: #334155; }
+        .dark .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
+        .dark input, .dark textarea { background-color: #1e293b; color: #e2e8f0; border-color: #334155; }
+        .dark input:focus, .dark textarea:focus { ring-color: #3b82f6; }
+        
+        /* 引导遮罩 */
+        .tour-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tour-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .dark .tour-card { background: #1e293b; }
+        
+        /* 快捷键提示 */
+        kbd {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            font-family: monospace;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        .dark kbd {
+            background: #334155;
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8" x-data="app()" x-init="init()" :class="{ 'dark': darkMode }">
+        <!-- 顶部导航 -->
+        <div class="flex justify-between items-center mb-8">
+            <div class="text-center flex-1">
+                <h1 class="text-3xl font-bold text-gray-800">百度网盘批量转存工具</h1>
+                <p class="text-gray-600 mt-2">支持公开链接和好友分享，一键批量转存</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- 深色模式切换 -->
+                <button 
+                    @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)"
+                    class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    :title="darkMode ? '切换到亮色模式' : '切换到深色模式'"
+                >
+                    <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                    <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                </button>
+                <!-- 统计按钮 -->
+                <button 
+                    @click="showStats = !showStats; if(showStats) loadStats()"
+                    class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    title="查看统计"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计面板 -->
+        <div x-show="showStats" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">📊 数据统计</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-300" x-text="stats.total_tasks">0</div>
+                    <div class="text-sm text-blue-500">总任务数</div>
+                </div>
+                <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-green-600 dark:text-green-300" x-text="stats.success_tasks">0</div>
+                    <div class="text-sm text-green-500">成功任务</div>
+                </div>
+                <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-300" x-text="stats.total_files">0</div>
+                    <div class="text-sm text-purple-500">总文件数</div>
+                </div>
+                <div class="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-300" x-text="stats.success_rate + '%'">0%</div>
+                    <div class="text-sm text-orange-500">成功率</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cookie 设置区域 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                    </svg>
+                    Cookie 设置
+                </div>
+                <button 
+                    @click="showCookieHelp = !showCookieHelp" 
+                    class="text-sm text-blue-500 hover:text-blue-700 flex items-center"
+                >
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span x-text="showCookieHelp ? '收起帮助' : '如何获取Cookie？'"></span>
+                </button>
+            </h2>
+            
+            <!-- Cookie获取帮助 -->
+            <div x-show="showCookieHelp" x-cloak class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 class="font-semibold text-blue-800 mb-3">📋 如何获取百度网盘Cookie</h3>
+                <ol class="text-sm text-blue-700 space-y-2 list-decimal pl-5">
+                    <li>打开浏览器，访问 <a href="https://pan.baidu.com" target="_blank" class="underline font-medium">pan.baidu.com</a> 并登录</li>
+                    <li>
+                        按 <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">F12</kbd> 
+                        或 <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">Ctrl+Shift+I</kbd> 
+                        (Mac: <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">⌘+⌥+I</kbd>) 打开开发者工具
+                    </li>
+                    <li>点击顶部的 <strong>Network（网络）</strong> 标签</li>
+                    <li>按 <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">F5</kbd> 刷新页面</li>
+                    <li>点击左侧任意请求，在右侧找到 <strong>Request Headers</strong></li>
+                    <li>找到 <code class="bg-blue-100 px-1 rounded">Cookie:</code> 这一行，复制<strong>冒号后面的所有内容</strong></li>
+                </ol>
+                <div class="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-600">
+                    💡 <strong>提示：</strong>Cookie包含登录凭证（BDUSS等），有效期约30天，请勿分享给他人
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <input 
+                    type="password" 
+                    x-model="cookie" 
+                    placeholder="粘贴百度网盘Cookie（格式：BDUSS=xxx; STOKEN=xxx; ...）" 
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <button 
+                    @click="validateCookie()" 
+                    :disabled="!cookie || validating"
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span x-show="!validating">验证</span>
+                    <span x-show="validating">验证中...</span>
+                </button>
+            </div>
+            <div x-show="cookieStatus" x-cloak class="mt-3">
+                <div x-show="cookieStatus === 'valid'" class="text-green-600 flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>Cookie有效，用户: <span x-text="userInfo.username" class="font-medium"></span></span>
+                </div>
+                <div x-show="cookieStatus === 'invalid'" class="text-red-600 flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span x-text="cookieError"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 模式切换标签 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex border-b mb-4">
+                <button 
+                    @click="mode = 'single'" 
+                    :class="mode === 'single' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
+                    class="px-4 py-2 border-b-2 font-medium"
+                >
+                    单个链接
+                </button>
+                <button 
+                    @click="mode = 'batch'" 
+                    :class="mode === 'batch' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
+                    class="px-4 py-2 border-b-2 font-medium"
+                >
+                    批量链接
+                </button>
+            </div>
+
+            <!-- 单个链接模式 -->
+            <div x-show="mode === 'single'">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    新建转存任务
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">分享链接</label>
+                        <input 
+                            type="text" 
+                            x-model="shareLink" 
+                            placeholder="https://pan.baidu.com/s/xxxxxxx" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">提取码（如有）</label>
+                        <input 
+                            type="text" 
+                            x-model="sharePwd" 
+                            placeholder="留空表示无需提取码" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">目标路径</label>
+                        <input 
+                            type="text" 
+                            x-model="targetPath" 
+                            placeholder="/我的资源/转存文件" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                    
+                    <button 
+                        @click="parseShareLink()" 
+                        :disabled="!shareLink || !targetPath || !cookieValid || parsing"
+                        class="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                    >
+                        <span x-show="!parsing">解析分享链接</span>
+                        <span x-show="parsing">解析中...</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 批量链接模式 -->
+            <div x-show="mode === 'batch'">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                    批量转存任务
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            分享链接列表 
+                            <span class="text-gray-500 font-normal">（每行一个，格式：链接 提取码）</span>
+                        </label>
+                        <textarea 
+                            x-model="batchLinks" 
+                            rows="6"
+                            placeholder="https://pan.baidu.com/s/xxx1 密码1&#10;https://pan.baidu.com/s/xxx2 密码2&#10;https://pan.baidu.com/s/xxx3"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        ></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">目标路径</label>
+                        <input 
+                            type="text" 
+                            x-model="targetPath" 
+                            placeholder="/我的资源/批量转存" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <input 
+                            type="checkbox" 
+                            x-model="createSubdirs" 
+                            id="createSubdirs"
+                            class="mr-2"
+                        >
+                        <label for="createSubdirs" class="text-sm text-gray-700">为每个分享创建子目录</label>
+                    </div>
+                    
+                    <button 
+                        @click="parseBatchLinks()" 
+                        :disabled="!batchLinks || !targetPath || !cookieValid || parsing"
+                        class="w-full px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                    >
+                        <span x-show="!parsing">解析批量链接</span>
+                        <span x-show="parsing">解析中...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件预览和确认（单个链接） -->
+        <div x-show="previewData && mode === 'single'" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">文件预览</h2>
+            
+            <div class="mb-4 p-4 bg-blue-50 rounded-lg">
+                <p class="text-blue-800">
+                    <span class="font-medium">分享标题：</span>
+                    <span x-text="previewData?.share_title"></span>
+                </p>
+                <p class="text-blue-800 mt-1">
+                    <span class="font-medium">文件总数：</span>
+                    <span x-text="previewData?.total_files" class="text-2xl font-bold text-blue-600"></span> 个
+                </p>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="font-medium text-gray-700 mb-2">文件列表预览（前50个）：</h3>
+                <div class="max-h-60 overflow-y-auto border rounded-lg p-3">
+                    <template x-for="(file, index) in previewData?.preview_files || []" :key="index">
+                        <div class="py-1 text-sm text-gray-600 border-b last:border-b-0" x-text="file.name"></div>
+                    </template>
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <button 
+                    @click="startTransfer(false)" 
+                    :disabled="transferring"
+                    class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium"
+                >
+                    开始转存
+                </button>
+                <button 
+                    @click="cancelPreview()" 
+                    class="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                >
+                    取消
+                </button>
+            </div>
+        </div>
+
+        <!-- 批量预览 -->
+        <div x-show="batchPreviewData && mode === 'batch'" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">批量任务预览</h2>
+            
+            <div class="mb-4 p-4 bg-purple-50 rounded-lg">
+                <p class="text-purple-800">
+                    <span class="font-medium">链接数量：</span>
+                    <span x-text="batchPreviewData?.total_links" class="font-bold"></span> 个
+                </p>
+                <p class="text-purple-800 mt-1">
+                    <span class="font-medium">文件总数：</span>
+                    <span x-text="batchPreviewData?.total_files" class="text-2xl font-bold text-purple-600"></span> 个
+                </p>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="font-medium text-gray-700 mb-2">链接解析结果：</h3>
+                <div class="max-h-60 overflow-y-auto border rounded-lg p-3">
+                    <template x-for="(result, index) in batchPreviewData?.results || []" :key="index">
+                        <div class="py-2 border-b last:border-b-0 flex justify-between items-center">
+                            <div class="flex-1 truncate">
+                                <span class="text-sm text-gray-600" x-text="result.url"></span>
+                            </div>
+                            <div class="ml-4">
+                                <span x-show="result.status === 'ready'" class="text-green-600 text-sm">
+                                    ✓ <span x-text="result.total_files"></span> 个文件
+                                </span>
+                                <span x-show="result.status === 'error'" class="text-red-600 text-sm" x-text="result.error"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <button 
+                    @click="startBatchTransfer()" 
+                    :disabled="transferring"
+                    class="flex-1 px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 font-medium"
+                >
+                    开始批量转存
+                </button>
+                <button 
+                    @click="cancelPreview()" 
+                    class="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                >
+                    取消
+                </button>
+            </div>
+        </div>
+
+        <!-- 覆盖确认弹窗 -->
+        <div x-show="showOverwriteConfirm" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">确认覆盖</h3>
+                <p class="text-gray-600 mb-4" x-text="confirmMessage"></p>
+                <div x-show="existingFiles.length > 0" class="mb-4 max-h-40 overflow-y-auto">
+                    <p class="text-sm text-gray-500 mb-2">已存在的文件：</p>
+                    <template x-for="(file, index) in existingFiles" :key="index">
+                        <div class="text-sm text-gray-600 py-1" x-text="file"></div>
+                    </template>
+                </div>
+                <div class="flex gap-4">
+                    <button 
+                        @click="confirmOverwrite(true)" 
+                        class="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                    >
+                        确认覆盖
+                    </button>
+                    <button 
+                        @click="confirmOverwrite(false)" 
+                        class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                    >
+                        取消
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务进度 -->
+        <div x-show="currentTask || currentBatch" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    任务进度
+                </div>
+                <div class="flex gap-2">
+                    <button 
+                        x-show="progress.status === 'running'" 
+                        @click="pauseTask()"
+                        class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
+                    >
+                        暂停
+                    </button>
+                    <button 
+                        x-show="progress.status === 'paused'" 
+                        @click="resumeTask()"
+                        class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                    >
+                        继续
+                    </button>
+                </div>
+            </h2>
+            
+            <!-- 状态指示 -->
+            <div class="mb-4">
+                <span class="px-3 py-1 rounded-full text-sm font-medium" 
+                      :class="{
+                          'bg-yellow-100 text-yellow-800': progress.status === 'running' || progress.status === 'paused',
+                          'bg-green-100 text-green-800': progress.status === 'completed',
+                          'bg-red-100 text-red-800': progress.status === 'error',
+                          'bg-gray-100 text-gray-800': progress.status === 'ready'
+                      }"
+                      x-text="statusText[progress.status] || progress.status">
+                </span>
+            </div>
+            
+            <!-- 进度条 -->
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>进度：<span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
+                    <span x-text="progressPercent + '%'"></span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div class="bg-blue-500 h-4 rounded-full progress-bar" :style="`width: ${progressPercent}%`"></div>
+                </div>
+            </div>
+            
+            <!-- 统计信息 -->
+            <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
+                <div>
+                    <span class="text-gray-500">速度：</span>
+                    <span class="font-medium" x-text="progress.speed + ' 文件/秒'"></span>
+                </div>
+                <div>
+                    <span class="text-gray-500">已用时间：</span>
+                    <span class="font-medium" x-text="formatTime(progress.elapsed)"></span>
+                </div>
+                <div>
+                    <span class="text-gray-500">失败：</span>
+                    <span class="font-medium text-red-600" x-text="progress.failed"></span>
+                </div>
+            </div>
+            
+            <!-- 批次信息 -->
+            <div x-show="progress.total_batches > 0" class="text-sm text-gray-600 mb-4">
+                批次：<span x-text="progress.current_batch"></span> / <span x-text="progress.total_batches"></span>
+            </div>
+            
+            <!-- 失败文件 -->
+            <div x-show="progress.failed > 0" class="mb-4">
+                <p class="text-red-600 font-medium">失败文件：<span x-text="progress.failed"></span> 个</p>
+                <div class="max-h-30 overflow-y-auto">
+                    <template x-for="(file, index) in progress.failed_files || []" :key="index">
+                        <div class="text-sm text-red-500" x-text="`${file.name}: ${file.error}`"></div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- 日志 -->
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">执行日志：</h3>
+                <div class="log-container bg-gray-50 rounded-lg p-3 text-sm font-mono">
+                    <template x-for="(log, index) in progress.logs || []" :key="index">
+                        <div class="text-gray-600 py-1" x-text="log"></div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- 导出按钮 -->
+            <div x-show="progress.status === 'completed'" class="mt-4">
+                <button 
+                    @click="exportLog()" 
+                    class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                    导出日志
+                </button>
+            </div>
+        </div>
+
+        <!-- 历史任务 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                历史任务
+            </h2>
+            
+            <div x-show="historyTasks.length === 0" class="text-gray-500 text-center py-8">
+                暂无历史任务
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full" x-show="historyTasks.length > 0">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">任务ID</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">分享链接</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">目标路径</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">状态</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">进度</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="task in historyTasks" :key="task.id">
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2 text-sm" x-text="task.id"></td>
+                                <td class="px-4 py-2 text-sm max-w-xs truncate" x-text="task.share_link"></td>
+                                <td class="px-4 py-2 text-sm" x-text="task.target_path"></td>
+                                <td class="px-4 py-2 text-sm">
+                                    <span class="px-2 py-1 rounded text-xs" 
+                                          :class="{
+                                              'bg-green-100 text-green-800': task.status === 'completed',
+                                              'bg-red-100 text-red-800': task.status === 'error',
+                                              'bg-yellow-100 text-yellow-800': task.status === 'running' || task.status === 'paused',
+                                              'bg-gray-100 text-gray-800': true
+                                          }"
+                                          x-text="statusText[task.status] || task.status">
+                                    </span>
+                                </td>
+                                <td class="px-4 py-2 text-sm" x-text="`${task.completed_files}/${task.total_files}`"></td>
+                                <td class="px-4 py-2 text-sm" x-text="new Date(task.created_at).toLocaleString()"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                // 模式
+                mode: 'single',
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                showStats: false,
+                
+                // Cookie 相关
+                cookie: localStorage.getItem('baidu_cookie') || '',
+                cookieValid: false,
+                cookieStatus: '',
+                cookieError: '',
+                userInfo: {},
+                validating: false,
+                showCookieHelp: false,
+                
+                // 单个链接相关
+                shareLink: '',
+                sharePwd: '',
+                targetPath: '/我的资源/转存文件',
+                parsing: false,
+                
+                // 批量链接相关
+                batchLinks: '',
+                createSubdirs: true,
+                
+                // 预览数据
+                previewData: null,
+                batchPreviewData: null,
+                
+                // 任务相关
+                currentTask: null,
+                currentBatch: null,
+                transferring: false,
+                progress: {
+                    status: 'ready',
+                    total: 0,
+                    completed: 0,
+                    failed: 0,
+                    current_batch: 0,
+                    total_batches: 0,
+                    logs: [],
+                    failed_files: [],
+                    speed: 0,
+                    elapsed: 0
+                },
+                progressTimer: null,
+                
+                // 覆盖确认
+                showOverwriteConfirm: false,
+                confirmMessage: '',
+                existingFiles: [],
+                
+                // 历史任务
+                historyTasks: [],
+                
+                // 统计数据
+                stats: {
+                    total_tasks: 0,
+                    success_tasks: 0,
+                    total_files: 0,
+                    success_rate: 0
+                },
+                
+                // 状态文本
+                statusText: {
+                    'pending': '待处理',
+                    'ready': '就绪',
+                    'running': '执行中',
+                    'paused': '已暂停',
+                    'completed': '已完成',
+                    'error': '失败',
+                    'waiting_confirm': '等待确认'
+                },
+                
+                init() {
+                    if (this.cookie) {
+                        this.validateCookie();
+                    }
+                    this.loadHistory();
+                },
+                
+                get progressPercent() {
+                    if (this.progress.total === 0) return 0;
+                    return Math.round((this.progress.completed / this.progress.total) * 100);
+                },
+                
+                formatTime(seconds) {
+                    if (!seconds) return '0秒';
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+                },
+                
+                async validateCookie() {
+                    this.validating = true;
+                    this.cookieStatus = '';
+                    
+                    try {
+                        const resp = await fetch('/api/cookie/validate', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({cookie: this.cookie})
+                        });
+                        
+                        const data = await resp.json();
+                        
+                        if (data.valid) {
+                            this.cookieValid = true;
+                            this.cookieStatus = 'valid';
+                            this.userInfo = data;
+                            localStorage.setItem('baidu_cookie', this.cookie);
+                        } else {
+                            this.cookieValid = false;
+                            this.cookieStatus = 'invalid';
+                            this.cookieError = data.error || 'Cookie无效';
+                        }
+                    } catch (e) {
+                        this.cookieStatus = 'invalid';
+                        this.cookieError = '验证失败：' + e.message;
+                    } finally {
+                        this.validating = false;
+                    }
+                },
+                
+                async parseShareLink() {
+                    this.parsing = true;
+                    this.previewData = null;
+                    
+                    try {
+                        const resp = await fetch('/api/share/parse', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Baidu-Cookie': this.cookie
+                            },
+                            body: JSON.stringify({
+                                share_link: this.shareLink,
+                                pwd: this.sharePwd,
+                                target_path: this.targetPath
+                            })
+                        });
+                        
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.detail || '解析失败');
+                        }
+                        
+                        const data = await resp.json();
+                        this.previewData = data;
+                        this.currentTask = data.task_id;
+                        
+                    } catch (e) {
+                        alert('解析失败：' + e.message);
+                    } finally {
+                        this.parsing = false;
+                    }
+                },
+                
+                async parseBatchLinks() {
+                    this.parsing = true;
+                    this.batchPreviewData = null;
+                    
+                    // 解析批量链接
+                    const links = this.batchLinks.split('\n')
+                        .filter(line => line.trim())
+                        .map(line => {
+                            const parts = line.trim().split(/\s+/);
+                            return {
+                                url: parts[0],
+                                pwd: parts[1] || ''
+                            };
+                        });
+                    
+                    try {
+                        const resp = await fetch('/api/batch/parse', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Baidu-Cookie': this.cookie
+                            },
+                            body: JSON.stringify({
+                                links: links,
+                                target_path: this.targetPath,
+                                create_subdirs: this.createSubdirs
+                            })
+                        });
+                        
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.detail || '解析失败');
+                        }
+                        
+                        const data = await resp.json();
+                        this.batchPreviewData = data;
+                        this.currentBatch = data.batch_id;
+                        
+                    } catch (e) {
+                        alert('解析失败：' + e.message);
+                    } finally {
+                        this.parsing = false;
+                    }
+                },
+                
+                async startTransfer(overwrite) {
+                    this.transferring = true;
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${this.currentTask}/start`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                task_id: this.currentTask,
+                                overwrite: overwrite
+                            })
+                        });
+                        
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.detail || '启动失败');
+                        }
+                        
+                        this.startProgressPolling();
+                        
+                    } catch (e) {
+                        alert('启动失败：' + e.message);
+                    } finally {
+                        this.transferring = false;
+                    }
+                },
+                
+                async startBatchTransfer() {
+                    this.transferring = true;
+                    
+                    try {
+                        const resp = await fetch(`/api/batch/${this.currentBatch}/start`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Baidu-Cookie': this.cookie
+                            }
+                        });
+                        
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.detail || '启动失败');
+                        }
+                        
+                        this.startProgressPolling();
+                        
+                    } catch (e) {
+                        alert('启动失败：' + e.message);
+                    } finally {
+                        this.transferring = false;
+                    }
+                },
+                
+                startProgressPolling() {
+                    if (this.progressTimer) {
+                        clearInterval(this.progressTimer);
+                    }
+                    
+                    this.progressTimer = setInterval(async () => {
+                        try {
+                            const taskId = this.currentTask;
+                            if (!taskId) return;
+                            
+                            const resp = await fetch(`/api/task/${taskId}/progress`);
+                            const data = await resp.json();
+                            
+                            this.progress = data;
+                            
+                            if (data.status === 'waiting_confirm' && data.confirm_data) {
+                                this.showOverwriteConfirm = true;
+                                this.confirmMessage = data.confirm_data.message;
+                                this.existingFiles = data.confirm_data.existing_files || [];
+                                clearInterval(this.progressTimer);
+                            }
+                            
+                            if (data.status === 'completed' || data.status === 'error') {
+                                clearInterval(this.progressTimer);
+                                this.loadHistory();
+                            }
+                        } catch (e) {
+                            console.error('获取进度失败:', e);
+                        }
+                    }, 1000);
+                },
+                
+                async pauseTask() {
+                    if (!this.currentTask) return;
+                    
+                    try {
+                        await fetch(`/api/task/${this.currentTask}/pause`, { method: 'POST' });
+                    } catch (e) {
+                        console.error('暂停失败:', e);
+                    }
+                },
+                
+                async resumeTask() {
+                    if (!this.currentTask) return;
+                    
+                    try {
+                        await fetch(`/api/task/${this.currentTask}/resume`, { method: 'POST' });
+                    } catch (e) {
+                        console.error('恢复失败:', e);
+                    }
+                },
+                
+                confirmOverwrite(confirmed) {
+                    this.showOverwriteConfirm = false;
+                    
+                    if (confirmed) {
+                        this.startTransfer(true);
+                    } else {
+                        this.progress.status = 'cancelled';
+                    }
+                },
+                
+                cancelPreview() {
+                    this.previewData = null;
+                    this.batchPreviewData = null;
+                    this.currentTask = null;
+                    this.currentBatch = null;
+                },
+                
+                async exportLog() {
+                    const taskId = this.currentTask;
+                    if (!taskId) return;
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${taskId}/export`);
+                        const data = await resp.json();
+                        
+                        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `task_${taskId}_log.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    } catch (e) {
+                        alert('导出失败：' + e.message);
+                    }
+                },
+                
+                async loadHistory() {
+                    try {
+                        const resp = await fetch('/api/tasks');
+                        this.historyTasks = await resp.json();
+                    } catch (e) {
+                        console.error('加载历史任务失败:', e);
+                    }
+                },
+                
+                async loadStats() {
+                    try {
+                        const resp = await fetch('/api/stats');
+                        this.stats = await resp.json();
+                    } catch (e) {
+                        console.error('加载统计数据失败:', e);
+                    }
+                },
+                
+                // 新手引导
+                showTour: !localStorage.getItem('tourCompleted'),
+                tourStep: 0,
+                tourSteps: [
+                    {
+                        title: '欢迎使用百度网盘批量转存工具！',
+                        content: '这个工具可以帮助你一键批量转存百度网盘的共享文件。',
+                        icon: '👋'
+                    },
+                    {
+                        title: '第一步：设置Cookie',
+                        content: '首先需要设置百度网盘的Cookie。点击"如何获取Cookie？"查看详细步骤。',
+                        icon: '🔑'
+                    },
+                    {
+                        title: '第二步：选择模式',
+                        content: '可以选择"单个链接"或"批量链接"模式。批量模式支持一次处理多个分享链接。',
+                        icon: '📋'
+                    },
+                    {
+                        title: '第三步：开始转存',
+                        content: '输入分享链接和目标路径，点击解析后即可开始转存。支持暂停、继续和导出日志。',
+                        icon: '🚀'
+                    },
+                    {
+                        title: '快捷键提示',
+                        content: '• Ctrl+V：粘贴Cookie或链接\n• Enter：确认输入\n• Esc：关闭弹窗',
+                        icon: '⌨️'
+                    }
+                ],
+                
+                nextTourStep() {
+                    if (this.tourStep < this.tourSteps.length - 1) {
+                        this.tourStep++;
+                    } else {
+                        this.closeTour();
+                    }
+                },
+                
+                closeTour() {
+                    this.showTour = false;
+                    localStorage.setItem('tourCompleted', 'true');
+                },
+                
+                resetTour() {
+                    this.tourStep = 0;
+                    this.showTour = true;
+                    localStorage.removeItem('tourCompleted');
+                }
+            };
+        }
+    </script>
+    
+    <!-- 新手引导弹窗 -->
+    <div x-show="showTour" x-cloak class="tour-overlay" @keydown.escape.window="closeTour()">
+        <div class="tour-card">
+            <div class="text-center mb-4">
+                <span class="text-4xl" x-text="tourSteps[tourStep].icon"></span>
+            </div>
+            <h3 class="text-xl font-semibold text-center mb-2" x-text="tourSteps[tourStep].title"></h3>
+            <p class="text-gray-600 text-center mb-6 whitespace-pre-line" x-text="tourSteps[tourStep].content"></p>
+            
+            <!-- 步骤指示器 -->
+            <div class="flex justify-center mb-4">
+                <template x-for="(step, index) in tourSteps" :key="index">
+                    <div 
+                        class="w-2 h-2 rounded-full mx-1"
+                        :class="index === tourStep ? 'bg-blue-500' : 'bg-gray-300'"
+                    ></div>
+                </template>
+            </div>
+            
+            <div class="flex justify-between">
+                <button 
+                    x-show="tourStep > 0"
+                    @click="tourStep--"
+                    class="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                    上一步
+                </button>
+                <div x-show="tourStep === 0"></div>
+                <button 
+                    @click="nextTourStep()"
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                    x-text="tourStep === tourSteps.length - 1 ? '开始使用' : '下一步'"
+                ></button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 快捷键提示浮层 -->
+    <div class="fixed bottom-4 right-4 z-50">
+        <button 
+            @click="resetTour()"
+            class="bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 transition-all"
+            title="查看帮助和快捷键"
+        >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        </button>
+    </div>
+</body>
+</html>
