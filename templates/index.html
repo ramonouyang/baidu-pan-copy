@@ -122,74 +122,137 @@
             </div>
         </div>
 
-        <!-- Cookie 设置区域 -->
+        <!-- Cookie 设置区域 - 一键登录 -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
-                <div class="flex items-center">
-                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
-                    </svg>
-                    Cookie 设置
-                </div>
-                <button 
-                    @click="showCookieHelp = !showCookieHelp" 
-                    class="text-sm text-blue-500 hover:text-blue-700 flex items-center"
-                >
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span x-text="showCookieHelp ? '收起帮助' : '如何获取Cookie？'"></span>
-                </button>
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                </svg>
+                连接百度网盘
             </h2>
-            
-            <!-- Cookie获取帮助 -->
-            <div x-show="showCookieHelp" x-cloak class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 class="font-semibold text-blue-800 mb-3">📋 如何获取百度网盘Cookie</h3>
-                <ol class="text-sm text-blue-700 space-y-2 list-decimal pl-5">
-                    <li>打开浏览器，访问 <a href="https://pan.baidu.com" target="_blank" class="underline font-medium">pan.baidu.com</a> 并登录</li>
-                    <li>
-                        按 <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">F12</kbd> 
-                        或 <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">Ctrl+Shift+I</kbd> 
-                        (Mac: <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">⌘+⌥+I</kbd>) 打开开发者工具
-                    </li>
-                    <li>点击顶部的 <strong>Network（网络）</strong> 标签</li>
-                    <li>按 <kbd class="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">F5</kbd> 刷新页面</li>
-                    <li>点击左侧任意请求，在右侧找到 <strong>Request Headers</strong></li>
-                    <li>找到 <code class="bg-blue-100 px-1 rounded">Cookie:</code> 这一行，复制<strong>冒号后面的所有内容</strong></li>
-                </ol>
-                <div class="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-600">
-                    💡 <strong>提示：</strong>Cookie包含登录凭证（BDUSS等），有效期约30天，请勿分享给他人
+
+            <div class="space-y-4">
+                <!-- Step 1: 打开百度网盘 -->
+                <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full">1</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-700 mb-2">点击下方按钮打开百度网盘并登录</p>
+                        <a href="https://pan.baidu.com" target="_blank"
+                           class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium shadow-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                            打开百度网盘
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Step 2: 一键添加书签 -->
+                <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full">2</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-700 mb-2">点击下方按钮复制书签代码，然后按快捷键添加书签</p>
+                        <button
+                            @click="copyBookmarkletAndGuide()"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium shadow-sm"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                            </svg>
+                            <span x-text="bmCopied ? '✅ 已复制！按快捷键添加书签' : '📌 复制代码并添加书签'"></span>
+                        </button>
+                        <!-- 添加书签引导（持久显示） -->
+                        <div x-show="bmCopied && !bmGuideClosed" x-cloak class="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg relative">
+                            <button @click="bmGuideClosed = true" class="absolute top-2 right-2 text-blue-400 hover:text-blue-600 text-lg" title="关闭提示">×</button>
+                            <p class="text-sm text-blue-800 mb-3"><strong>✅ 代码已复制到剪贴板！</strong>请按以下步骤添加书签：</p>
+                            <ol class="text-sm text-blue-700 space-y-2 list-decimal list-inside">
+                                <li>按 <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">D</kbd> 添加书签，名称改为「获取网盘Cookie」，点击完成</li>
+                                <li>在书签栏<strong>右键</strong>刚添加的书签 → <strong>编辑</strong></li>
+                                <li>将网址栏的内容<strong>全部删除</strong>，然后 <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">V</kbd> 粘贴代码，点击保存</li>
+                            </ol>
+                            <p class="text-xs text-blue-600 mt-3">💡 添加完成后，按下方步骤3操作即可</p>
+                        </div>
+                        <!-- Fallback: show code in textarea if clipboard fails -->
+                        <div x-show="bmShowCode" x-cloak class="mt-3">
+                            <p class="text-xs text-red-500 mb-2" x-show="bmError" x-text="bmError"></p>
+                            <p class="text-xs text-gray-500 mb-2">自动复制失败，请手动全选下方代码并复制：</p>
+                            <textarea
+                                x-ref="bmCodeArea"
+                                class="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-gray-50"
+                                readonly
+                                @click="$refs.bmCodeArea.select()"
+                                x-text="_bmCode || '加载中...'"
+                                x-init="$watch('bmShowCode', v => { if(v) { $nextTick(() => { $refs.bmCodeArea && $refs.bmCodeArea.select(); }); } })"
+                            ></textarea>
+                            <p class="text-xs text-gray-400 mt-1">💡 点击文本框即可全选，然后 Ctrl+C / Cmd+C 复制</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: 使用 -->
+                <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full">3</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-700"><strong>回到百度网盘页面</strong>，点击刚添加的书签「获取网盘Cookie」，按弹窗指引操作</p>
+                        <p class="text-xs text-amber-600 mt-1">💡 百度网盘的 BDUSS 有 HttpOnly 保护，弹窗会引导你通过 Application 面板获取</p>
+                    </div>
                 </div>
             </div>
-            
-            <div class="flex gap-4">
-                <input 
-                    type="password" 
-                    x-model="cookie" 
-                    placeholder="粘贴百度网盘Cookie（格式：BDUSS=xxx; STOKEN=xxx; ...）" 
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                <button 
-                    @click="validateCookie()" 
-                    :disabled="!cookie || validating"
-                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <span x-show="!validating">验证</span>
-                    <span x-show="validating">验证中...</span>
+
+            <!-- 连接状态 -->
+            <div class="mt-4 flex items-center gap-2 p-3 rounded-lg" :class="cookieStatus === 'valid' ? 'bg-green-50' : cookieStatus === 'invalid' ? 'bg-red-50' : 'bg-blue-50'">
+                <template x-if="cookieStatus === 'valid'">
+                    <div class="text-green-600 flex items-center text-sm">
+                        <svg class="w-5 h-5 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span class="font-medium">已连接</span> — 用户: <span x-text="userInfo.username" class="font-medium ml-1"></span>
+                    </div>
+                </template>
+                <template x-if="cookieStatus === 'invalid'">
+                    <div class="text-red-600 flex items-center text-sm">
+                        <svg class="w-5 h-5 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span x-text="cookieError"></span>
+                    </div>
+                </template>
+                <template x-if="!cookieStatus || cookieStatus === ''">
+                    <div class="text-blue-600 flex items-center text-sm">
+                        <svg class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>等待连接... 完成步骤1-3后会自动获取Cookie</span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- 手动粘贴 Cookie fallback -->
+            <div class="mt-4 border-t pt-4">
+                <button @click="showManualCookie = !showManualCookie" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <span x-text="showManualCookie ? '▼' : '▶'"></span>
+                    无法自动获取？手动粘贴 Cookie
                 </button>
-            </div>
-            <div x-show="cookieStatus" x-cloak class="mt-3">
-                <div x-show="cookieStatus === 'valid'" class="text-green-600 flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                    </svg>
-                    <span>Cookie有效，用户: <span x-text="userInfo.username" class="font-medium"></span></span>
-                </div>
-                <div x-show="cookieStatus === 'invalid'" class="text-red-600 flex items-center">
-                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-                    </svg>
-                    <span x-text="cookieError"></span>
+                <div x-show="showManualCookie" x-cloak class="mt-3">
+                    <p class="text-xs text-gray-500 mb-2">从 Application → Cookies → pan.baidu.com 中复制 BDUSS 和 STOKEN 的值，拼成如下格式粘贴：</p>
+                    <p class="text-xs font-mono bg-gray-100 px-2 py-1 rounded mb-2">BDUSS=你的BDUSS值; STOKEN=你的STOKEN值</p>
+                    <div class="flex gap-3">
+                        <input
+                            type="text"
+                            x-model="cookie"
+                            placeholder="BDUSS=xxx; STOKEN=xxx"
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                        <button
+                            @click="validateCookie()"
+                            :disabled="!cookie || validating"
+                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm"
+                        >
+                            <span x-show="!validating">验证</span>
+                            <span x-show="validating">验证中...</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -259,7 +322,10 @@
                         class="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
                         <span x-show="!parsing">解析分享链接</span>
-                        <span x-show="parsing">解析中...</span>
+                        <span x-show="parsing && parseProgress.status === 'verifying'">🔗 验证分享链接... <span class="text-sm opacity-75" x-text="parseElapsed + 's'"></span></span>
+                        <span x-show="parsing && parseProgress.status === 'enumerating'">
+                            📂 扫描中 <span x-text="parseElapsed + 's'"></span> | <span x-text="parseProgress.dirs_scanned"></span> 目录 <span x-text="parseProgress.files_found"></span> 文件
+                        </span>
                     </button>
                 </div>
             </div>
@@ -323,33 +389,156 @@
         <div x-show="previewData && mode === 'single'" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 class="text-xl font-semibold mb-4">文件预览</h2>
             
+            <!-- 分享信息 -->
             <div class="mb-4 p-4 bg-blue-50 rounded-lg">
                 <p class="text-blue-800">
                     <span class="font-medium">分享标题：</span>
                     <span x-text="previewData?.share_title"></span>
                 </p>
-                <p class="text-blue-800 mt-1">
-                    <span class="font-medium">文件总数：</span>
-                    <span x-text="previewData?.total_files" class="text-2xl font-bold text-blue-600"></span> 个
+                <div class="flex gap-6 mt-2">
+                    <p class="text-blue-800">
+                        <span class="font-medium">顶层目录：</span>
+                        <span x-text="previewData?.dirs_count" class="font-bold text-blue-600"></span> 个
+                    </p>
+                    <p class="text-blue-800">
+                        <span class="font-medium">顶层文件：</span>
+                        <span x-text="previewData?.files_count" class="font-bold text-blue-600"></span> 个
+                    </p>
+                </div>
+                <p class="text-xs text-blue-500 mt-2">
+                    💡 点击文件夹可展开查看子目录，已展开 <span x-text="Object.keys(treeExpanded).length"></span> 个目录，
+                    共发现 <span x-text="treeStats.dirs"></span> 个子目录、<span x-text="treeStats.files"></span> 个文件
                 </p>
             </div>
             
-            <div class="mb-4">
-                <h3 class="font-medium text-gray-700 mb-2">文件列表预览（前50个）：</h3>
-                <div class="max-h-60 overflow-y-auto border rounded-lg p-3">
-                    <template x-for="(file, index) in previewData?.preview_files || []" :key="index">
-                        <div class="py-1 text-sm text-gray-600 border-b last:border-b-0" x-text="file.name"></div>
-                    </template>
+            <!-- 操作栏 -->
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex gap-2">
+                    <button @click="selectAll()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                        全选
+                    </button>
+                    <button @click="deselectAll()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                        取消全选
+                    </button>
+                </div>
+                <div class="text-sm text-gray-600">
+                    已选 <span x-text="Object.keys(treeSelected).length" class="font-bold text-blue-600"></span> 项
+                    （<span x-text="treeStats.selectedFiles" class="font-bold text-blue-600"></span> 个文件）
                 </div>
             </div>
             
-            <div class="flex gap-4">
+            <!-- 文件树 -->
+            <div class="max-h-96 overflow-y-auto border rounded-lg" id="file-tree">
+                <template x-if="fileTree.length === 0">
+                    <div class="p-4 text-center text-gray-400">暂无文件</div>
+                </template>
+                
+                <template x-for="(item, index) in fileTree" :key="item.path || index">
+                    <div>
+                        <!-- 顶层项 -->
+                        <div class="flex items-center px-3 py-1.5 hover:bg-gray-50 border-b last:border-b-0"
+                             :class="{'bg-blue-50': isSelected(item.path)}">
+                            <!-- 勾选框 -->
+                            <input type="checkbox" 
+                                :checked="isSelected(item.path)"
+                                @change="toggleSelect(item.path, item.isdir)"
+                                class="mr-2 w-4 h-4 text-blue-600 rounded">
+                            
+                            <!-- 展开/收起箭头（仅目录） -->
+                            <template x-if="item.isdir">
+                                <button @click="toggleExpand(item)" 
+                                    class="mr-1 w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-700"
+                                    :class="{'animate-spin text-blue-500': isLoading(item.path)}">
+                                    <span x-show="!isLoading(item.path)" x-text="isExpanded(item.path) ? '▼' : '▶'" class="text-xs"></span>
+                                    <span x-show="isLoading(item.path)" class="text-xs">⏳</span>
+                                </button>
+                            </template>
+                            <template x-if="!item.isdir">
+                                <span class="mr-1 w-5 h-5"></span>
+                            </template>
+                            
+                            <!-- 图标 -->
+                            <span class="mr-2" x-text="item.isdir ? '📁' : '📄'"></span>
+                            
+                            <!-- 名称 -->
+                            <span class="text-sm truncate flex-1" x-text="item.name"></span>
+                            
+                            <!-- 大小（仅文件） -->
+                            <span x-show="!item.isdir" class="text-xs text-gray-400 ml-2" x-text="formatFileSize(item.size)"></span>
+                        </div>
+                        
+                        <!-- 子项（已展开的目录） -->
+                        <template x-if="item.isdir && isExpanded(item.path) && item.children">
+                            <div class="ml-6">
+                                <template x-for="(child, ci) in item.children" :key="child.path || ci">
+                                    <div>
+                                        <div class="flex items-center px-3 py-1 hover:bg-gray-50 border-b last:border-b-0"
+                                             :class="{'bg-blue-50': isSelected(child.path)}">
+                                            <input type="checkbox" 
+                                                :checked="isSelected(child.path)"
+                                                @change="toggleSelect(child.path, child.isdir)"
+                                                class="mr-2 w-4 h-4 text-blue-600 rounded">
+                                            
+                                            <template x-if="child.isdir">
+                                                <button @click="toggleExpand(child)" 
+                                                    class="mr-1 w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-700"
+                                                    :class="{'animate-spin text-blue-500': isLoading(child.path)}">
+                                                    <span x-show="!isLoading(child.path)" x-text="isExpanded(child.path) ? '▼' : '▶'" class="text-xs"></span>
+                                                    <span x-show="isLoading(child.path)" class="text-xs">⏳</span>
+                                                </button>
+                                            </template>
+                                            <template x-if="!child.isdir">
+                                                <span class="mr-1 w-5 h-5"></span>
+                                            </template>
+                                            
+                                            <span class="mr-2" x-text="child.isdir ? '📁' : '📄'"></span>
+                                            <span class="text-sm truncate flex-1" x-text="child.name"></span>
+                                            <span x-show="!child.isdir" class="text-xs text-gray-400 ml-2" x-text="formatFileSize(child.size)"></span>
+                                        </div>
+                                        
+                                        <!-- 第三层子项 -->
+                                        <template x-if="child.isdir && isExpanded(child.path) && child.children">
+                                            <div class="ml-6">
+                                                <template x-for="(gc, gi) in child.children" :key="gc.path || gi">
+                                                    <div class="flex items-center px-3 py-1 hover:bg-gray-50 border-b last:border-b-0"
+                                                         :class="{'bg-blue-50': isSelected(gc.path)}">
+                                                        <input type="checkbox" 
+                                                            :checked="isSelected(gc.path)"
+                                                            @change="toggleSelect(gc.path, gc.isdir)"
+                                                            class="mr-2 w-4 h-4 text-blue-600 rounded">
+                                                        <span class="mr-1 w-5 h-5"></span>
+                                                        <span class="mr-2" x-text="gc.isdir ? '📁' : '📄'"></span>
+                                                        <span class="text-sm truncate flex-1" x-text="gc.name"></span>
+                                                        <span x-show="!gc.isdir" class="text-xs text-gray-400 ml-2" x-text="formatFileSize(gc.size)"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- 转存按钮 -->
+            <div class="flex gap-4 mt-4">
+                <button 
+                    @click="transferSelected()" 
+                    :disabled="transferring || Object.keys(treeSelected).length === 0"
+                    class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium"
+                >
+                    <span x-show="!transferring">转存选中的 <span x-text="Object.keys(treeSelected).length"></span> 项</span>
+                    <span x-show="transferring">⏳ 转存中...</span>
+                </button>
                 <button 
                     @click="startTransfer(false)" 
                     :disabled="transferring"
-                    class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium"
+                    class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+                    title="使用旧版全量转存（需要先展开所有目录）"
                 >
-                    开始转存
+                    全量转存
                 </button>
                 <button 
                     @click="cancelPreview()" 
@@ -440,7 +629,7 @@
         </div>
 
         <!-- 任务进度 -->
-        <div x-show="currentTask || currentBatch" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div x-show="currentTask || currentBatch" x-cloak data-section="progress" class="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
                 <div class="flex items-center">
                     <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -463,6 +652,14 @@
                     >
                         继续
                     </button>
+                    <button 
+                        x-show="progress.status === 'error' && currentTask" 
+                        <!-- DTS2026061748509 — 断点续传/重新启动按钮 -->
+                        @click="restartTask()"
+                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                    >
+                        <span x-text="progress.has_checkpoint ? '🔄 断点续传' : '🔄 重新启动'"></span>
+                    </button>
                 </div>
             </h2>
             
@@ -479,36 +676,91 @@
                 </span>
             </div>
             
-            <!-- 进度条 -->
-            <div class="mb-4">
-                <div class="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>进度：<span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
-                    <span x-text="progressPercent + '%'"></span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-4">
-                    <div class="bg-blue-500 h-4 rounded-full progress-bar" :style="`width: ${progressPercent}%`"></div>
-                </div>
+            <!-- 当前操作描述 -->
+            <div x-show="progress.current_action" class="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                <span x-text="progress.current_action"></span>
             </div>
+            
+            <!-- 阶段进度（懒加载模式） -->
+            <template x-if="progress.mode === 'lazy'">
+                <div class="mb-4">
+                    <!-- 收集阶段 -->
+                    <div x-show="progress.phase === 'collecting'" class="space-y-2">
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>📂 扫描进度</span>
+                            <span x-text="progress.dirs_scanned + ' 个目录，' + progress.files_found + ' 个文件'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-blue-400 h-3 rounded-full animate-pulse" style="width: 100%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span>当前：<span x-text="progress.current_dir || '...'"></span></span>
+                            <span x-text="progress.api_requests + ' 次API请求'"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- 转存阶段 -->
+                    <div x-show="progress.phase === 'transferring'" class="space-y-2">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>📦 转存进度：<span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
+                            <span x-text="progressPercent + '%'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4">
+                            <div class="bg-blue-500 h-4 rounded-full progress-bar" :style="`width: ${progressPercent}%`"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 完成阶段 -->
+                    <div x-show="progress.phase === 'completed'" class="space-y-2">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>✅ 转存完成</span>
+                            <span x-text="progress.files_found + ' 个文件'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4">
+                            <div class="bg-green-500 h-4 rounded-full" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- 旧模式进度条 -->
+            <template x-if="progress.mode !== 'lazy'">
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm text-gray-600 mb-1">
+                        <span>进度：<span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
+                        <span x-text="progressPercent + '%'"></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4">
+                        <div class="bg-blue-500 h-4 rounded-full progress-bar" :style="`width: ${progressPercent}%`"></div>
+                    </div>
+                </div>
+            </template>
             
             <!-- 统计信息 -->
             <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
                 <div>
                     <span class="text-gray-500">速度：</span>
-                    <span class="font-medium" x-text="progress.speed + ' 文件/秒'"></span>
+                    <!-- DTS2026061748507 — 修复undefined速度显示 -->
+                    <span class="font-medium" x-text="(progress.speed || 0) + ' 文件/秒'"></span>
                 </div>
                 <div>
                     <span class="text-gray-500">已用时间：</span>
-                    <span class="font-medium" x-text="formatTime(progress.elapsed)"></span>
+                    <span class="font-medium" x-text="transferElapsed > 0 ? formatTime(transferElapsed) : formatTime(progress.elapsed)"></span>
                 </div>
                 <div>
                     <span class="text-gray-500">失败：</span>
-                    <span class="font-medium text-red-600" x-text="progress.failed"></span>
+                    <span class="font-medium text-red-600" x-text="progress.failed || 0"></span>
                 </div>
             </div>
             
             <!-- 批次信息 -->
             <div x-show="progress.total_batches > 0" class="text-sm text-gray-600 mb-4">
-                批次：<span x-text="progress.current_batch"></span> / <span x-text="progress.total_batches"></span>
+                批次：<span x-text="progress.current_batch || 0"></span> / <span x-text="progress.total_batches"></span>
+            </div>
+            
+            <!-- 断点续传提示 -->
+            <div x-show="progress.has_checkpoint && progress.status === 'error'" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                💡 检测到断点记录，重新启动任务将从上次中断处继续（已转存的文件会自动跳过）
             </div>
             
             <!-- 失败文件 -->
@@ -522,11 +774,27 @@
             </div>
             
             <!-- 日志 -->
-            <div>
-                <h3 class="font-medium text-gray-700 mb-2">执行日志：</h3>
-                <div class="log-container bg-gray-50 rounded-lg p-3 text-sm font-mono">
-                    <template x-for="(log, index) in progress.logs || []" :key="index">
-                        <div class="text-gray-600 py-1" x-text="log"></div>
+            <div x-show="progress.logs && progress.logs.length > 0">
+                <h3 class="font-medium text-gray-700 mb-2 flex items-center justify-between">
+                    <span>执行日志（<span x-text="(progress.logs || []).length"></span>）</span>
+                    <button @click="logsCollapsed = !logsCollapsed" class="text-xs text-blue-500 hover:text-blue-700">
+                        <span x-text="logsCollapsed ? '展开 ▼' : '收起 ▲'"></span>
+                    </button>
+                </h3>
+                <div x-show="!logsCollapsed" x-transition class="log-container bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono">
+                    <template x-for="(log, index) in (progress.logs || []).slice().reverse()" :key="index">
+                        <div class="py-0.5 flex">
+                            <span class="text-gray-500 w-16 flex-shrink-0" x-text="log.time || ''"></span>
+                            <span class="w-12 flex-shrink-0 font-semibold"
+                                  :class="{
+                                      'text-red-400': log.level === 'ERROR',
+                                      'text-yellow-400': log.level === 'WARNING',
+                                      'text-green-400': log.level === 'SUCCESS',
+                                      'text-blue-400': log.level === 'INFO'
+                                  }"
+                                  x-text="'[' + (log.level || 'INFO') + ']'"></span>
+                            <span class="text-gray-200" x-text="log.message || log"></span>
+                        </div>
                     </template>
                 </div>
             </div>
@@ -544,12 +812,21 @@
 
         <!-- 历史任务 -->
         <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold mb-4 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                历史任务
-            </h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    历史任务
+                </h2>
+                <button 
+                    x-show="historyTasks.length > 0"
+                    @click="if(confirm('确定清空所有记录？')) clearAllTasks()" 
+                    class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
+                >
+                    清空记录
+                </button>
+            </div>
             
             <div x-show="historyTasks.length === 0" class="text-gray-500 text-center py-8">
                 暂无历史任务
@@ -610,12 +887,22 @@
                 userInfo: {},
                 validating: false,
                 showCookieHelp: false,
+                showManualCookie: false,
+                bmCopied: false,
+                bmGuideClosed: false,
+                bmShowCode: false,
+                bmError: '',
                 
                 // 单个链接相关
-                shareLink: '',
-                sharePwd: '',
-                targetPath: '/我的资源/转存文件',
+                shareLink: 'https://pan.baidu.com/share/init?surl=olaXLDSB7JEMjQduvYT33A&pwd=ksq2',
+                sharePwd: 'ksq2',
+                targetPath: '/我的资源/labubu2',
                 parsing: false,
+                parseProgress: { status: '', dirs_scanned: 0, files_found: 0 },
+                parseProgressTimer: null,
+                parseStartTime: null,
+                parseElapsed: 0,
+                parseElapsedTimer: null,
                 
                 // 批量链接相关
                 batchLinks: '',
@@ -624,6 +911,14 @@
                 // 预览数据
                 previewData: null,
                 batchPreviewData: null,
+                
+                // 文件树（懒加载模式）
+                fileTree: [],           // 树结构数据
+                treeSelected: {},       // 选中的路径 {path: true}
+                treeExpanded: {},       // 已展开的目录 {path: true}
+                treeLoading: {},        // 正在加载的目录 {path: true}
+                treeStats: { dirs: 0, files: 0, selectedFiles: 0 },
+                shareSurl: '',
                 
                 // 任务相关
                 currentTask: null,
@@ -639,9 +934,13 @@
                     logs: [],
                     failed_files: [],
                     speed: 0,
-                    elapsed: 0
+                    elapsed: 0,
+                    has_checkpoint: false
                 },
                 progressTimer: null,
+                transferStartTime: null,
+                transferElapsed: 0,
+                logsCollapsed: true,
                 
                 // 覆盖确认
                 showOverwriteConfirm: false,
@@ -675,11 +974,77 @@
                         this.validateCookie();
                     }
                     this.loadHistory();
+                    this.startListening();
+                },
+                
+                startListening() {
+                    this.cookiePollTimer = setInterval(async () => {
+                        try {
+                            const resp = await fetch('/api/cookie/poll');
+                            const data = await resp.json();
+                            if (data.received && data.cookie) {
+                                this.cookie = data.cookie;
+                                this.stopListening();
+                                this.validateCookie();
+                            }
+                        } catch (e) { }
+                    }, 2000);
+                },
+                
+                stopListening() {
+                    if (this.cookiePollTimer) {
+                        clearInterval(this.cookiePollTimer);
+                        this.cookiePollTimer = null;
+                    }
+                },
+                
+                async copyBookmarklet() {
+                    try {
+                        const resp = await fetch('/api/cookie/bookmarklet');
+                        this._bmCode = await resp.text();
+                        // Try modern clipboard API first
+                        try {
+                            await navigator.clipboard.writeText(this._bmCode);
+                            this.bmCopied = true;
+                            this.bmShowCode = false;
+                            // 不再自动消失，由用户手动关闭引导面板
+                            return;
+                        } catch (clipErr) {
+                            // Clipboard API failed (not HTTPS or no permission), use execCommand fallback
+                        }
+                        // Fallback: select + copy via textarea
+                        const ta = document.createElement('textarea');
+                        ta.value = this._bmCode;
+                        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                            document.execCommand('copy');
+                            this.bmCopied = true;
+                            this.bmShowCode = false;
+                            // 不再自动消失，由用户手动关闭引导面板
+                        } catch (execErr) {
+                            // All copy methods failed — show code in textarea for manual select
+                            this.bmShowCode = true;
+                        }
+                        ta.remove();
+                    } catch (e) {
+                        this.bmShowCode = true;
+                        this.bmError = '获取代码失败，请刷新页面重试';
+                    }
+                },
+                
+                async copyBookmarkletAndGuide() {
+                    this.bmGuideClosed = false;
+                    await this.copyBookmarklet();
+                    // 引导面板持久显示，直到用户手动关闭或 Cookie 验证成功
                 },
                 
                 get progressPercent() {
-                    if (this.progress.total === 0) return 0;
-                    return Math.round((this.progress.completed / this.progress.total) * 100);
+                    const total = Number(this.progress.total) || 0;
+                    const completed = Number(this.progress.completed) || 0;
+                    if (total <= 0) return 0;
+                    return Math.min(100, Math.round((completed / total) * 100));
                 },
                 
                 formatTime(seconds) {
@@ -687,6 +1052,18 @@
                     const mins = Math.floor(seconds / 60);
                     const secs = Math.floor(seconds % 60);
                     return mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+                },
+                
+                formatFileSize(bytes) {
+                    if (!bytes || bytes === 0) return '';
+                    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    let i = 0;
+                    let size = bytes;
+                    while (size >= 1024 && i < units.length - 1) {
+                        size /= 1024;
+                        i++;
+                    }
+                    return size.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
                 },
                 
                 async validateCookie() {
@@ -723,8 +1100,16 @@
                 async parseShareLink() {
                     this.parsing = true;
                     this.previewData = null;
+                    this.parseProgress = { status: 'verifying', dirs_scanned: 0, files_found: 0 };
+                    this.parseStartTime = Date.now();
+                    this.parseElapsed = 0;
+                    if (this.parseElapsedTimer) clearInterval(this.parseElapsedTimer);
+                    this.parseElapsedTimer = setInterval(() => {
+                        this.parseElapsed = Math.floor((Date.now() - this.parseStartTime) / 1000);
+                    }, 1000);
                     
                     try {
+                        // 阶段1：快速验证分享链接（~2秒）
                         const resp = await fetch('/api/share/parse', {
                             method: 'POST',
                             headers: {
@@ -740,18 +1125,122 @@
                         
                         if (!resp.ok) {
                             const err = await resp.json();
+                            if (err.error_code === -12) {
+                                const shareLink = err.share_link || this.shareLink;
+                                throw new Error(
+                                    `需要验证码\n\n` +
+                                    `解决步骤：\n` +
+                                    `1. 点击下方链接在浏览器中打开\n` +
+                                    `2. 完成验证码验证\n` +
+                                    `3. 返回此页面重新解析\n\n` +
+                                    `链接：${shareLink}`
+                                );
+                            }
+                            if (err.error_code === -62) {
+                                throw new Error(
+                                    `请求过于频繁\n\n` +
+                                    `系统已自动重试多次，但百度仍在限流。\n` +
+                                    `解决方法：\n` +
+                                    `1. 等待 3-5 分钟后再试\n` +
+                                    `2. 或刷新页面重新获取Cookie\n\n` +
+                                    `提示：系统会自动控制请求频率，正常情况下不会触发限流。`
+                                );
+                            }
                             throw new Error(err.detail || '解析失败');
                         }
                         
                         const data = await resp.json();
-                        this.previewData = data;
+                        
+                        // 懒加载模式：直接返回顶层文件树
+                        this.stopParseElapsedTimer();
                         this.currentTask = data.task_id;
+                        this.shareSurl = data.surl || '';
+                        
+                        // 构建文件树
+                        this.fileTree = (data.top_items || []).map(item => ({
+                            name: item.server_filename || item.path?.split('/').pop() || '未知',
+                            path: item.path,
+                            isdir: parseInt(item.isdir) === 1,
+                            size: item.size || 0,
+                            fs_id: item.fs_id,
+                            children: null,  // 未展开
+                            childrenLoaded: false
+                        }));
+                        
+                        // 更新统计
+                        this.treeStats = {
+                            dirs: data.dirs_count || 0,
+                            files: data.files_count || 0,
+                            selectedFiles: 0
+                        };
+                        
+                        this.previewData = {
+                            task_id: data.task_id,
+                            total_items: data.total_items,
+                            dirs_count: data.dirs_count,
+                            files_count: data.files_count,
+                            share_title: data.share_title
+                        };
+                        
+                        this.parsing = false;
+                        this.loadHistory();
                         
                     } catch (e) {
                         alert('解析失败：' + e.message);
-                    } finally {
+                        this.stopParseElapsedTimer();
                         this.parsing = false;
                     }
+                },
+                
+                stopParseElapsedTimer() {
+                    if (this.parseElapsedTimer) {
+                        clearInterval(this.parseElapsedTimer);
+                        this.parseElapsedTimer = null;
+                    }
+                },
+                
+                startParseProgressPolling(taskId) {
+                    if (this.parseProgressTimer) {
+                        clearInterval(this.parseProgressTimer);
+                    }
+                    
+                    this.parseProgressTimer = setInterval(async () => {
+                        try {
+                            const resp = await fetch(`/api/share/parse/progress/${taskId}`);
+                            const data = await resp.json();
+                            
+                            this.parseProgress = {
+                                status: data.status,
+                                dirs_scanned: data.dirs_scanned || 0,
+                                files_found: data.files_found || 0,
+                                share_title: data.share_title || ''
+                            };
+                            
+                            if (data.status === 'ready') {
+                                // 文件枚举完成
+                                clearInterval(this.parseProgressTimer);
+                                this.parseProgressTimer = null;
+                                this.stopParseElapsedTimer();
+                                this.previewData = {
+                                    task_id: taskId,
+                                    total_files: data.total_files,
+                                    share_title: data.share_title,
+                                    preview_files: data.preview_files || []
+                                };
+                                this.parsing = false;
+                                // 刷新历史任务列表，让新任务立即出现在历史记录中
+                                this.loadHistory();
+                            } else if (data.status === 'error') {
+                                clearInterval(this.parseProgressTimer);
+                                this.parseProgressTimer = null;
+                                this.stopParseElapsedTimer();
+                                alert('解析失败：' + (data.error || '未知错误'));
+                                this.parsing = false;
+                            }
+                        } catch (e) {
+                            console.error('获取解析进度失败:', e);
+                        }
+                    }, 1000);
                 },
                 
                 async parseBatchLinks() {
@@ -800,7 +1289,19 @@
                 },
                 
                 async startTransfer(overwrite) {
+                    console.log('[startTransfer] called, currentTask:', this.currentTask, 'overwrite:', overwrite);
+                    if (!this.currentTask) {
+                        alert('请先解析分享链接');
+                        return;
+                    }
+                    // 防止重复点击：如果已经在转存中，直接忽略
+                    if (this.transferring) {
+                        console.log('[startTransfer] already transferring, ignoring');
+                        return;
+                    }
                     this.transferring = true;
+                    this.transferStartTime = Date.now();
+                    this.transferElapsed = 0;
                     
                     try {
                         const resp = await fetch(`/api/task/${this.currentTask}/start`, {
@@ -812,17 +1313,51 @@
                             })
                         });
                         
+                        console.log('[startTransfer] resp status:', resp.status);
+                        let data;
+                        try {
+                            data = await resp.json();
+                        } catch (parseErr) {
+                            const text = await resp.text().catch(() => '');
+                            throw new Error(`服务器返回非JSON响应 (HTTP ${resp.status}): ${text.slice(0, 200)}`);
+                        }
+                        console.log('[startTransfer] resp data:', data);
+                        
                         if (!resp.ok) {
-                            const err = await resp.json();
-                            throw new Error(err.detail || '启动失败');
+                            // 404 = 任务过期（服务器重启后内存任务丢失）
+                            if (resp.status === 404) {
+                                this.currentTask = null;
+                                this.taskInfo = null;
+                                localStorage.removeItem('currentTask');
+                                localStorage.removeItem('taskInfo');
+                                throw new Error('任务已过期（服务器重启），请重新解析分享链接');
+                            }
+                            const detail = typeof data.detail === 'string' ? data.detail :
+                                          Array.isArray(data.detail) ? data.detail.map(e => e.msg || JSON.stringify(e)).join('; ') :
+                                          (data.detail ? JSON.stringify(data.detail) : '启动失败');
+                            throw new Error(detail);
                         }
                         
+                        // 立即更新进度状态为 running，让用户看到变化
+                        this.progress.status = 'running';
+                        this.progress.total = data.total || this.progress.total || 0;
                         this.startProgressPolling();
                         
+                        // 滚动到任务进度区域，让用户看到进度
+                        this.$nextTick(() => {
+                            const progressSection = document.querySelector('[data-section="progress"]');
+                            if (progressSection) {
+                                progressSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        });
+                        
+                        // 注意：transferring 不在这里设为 false
+                        // 由 startProgressPolling 在任务完成/失败时设为 false
+                        
                     } catch (e) {
+                        console.error('[startTransfer] error:', e);
+                        this.transferring = false;  // 只在错误时重置
                         alert('启动失败：' + e.message);
-                    } finally {
-                        this.transferring = false;
                     }
                 },
                 
@@ -840,7 +1375,10 @@
                         
                         if (!resp.ok) {
                             const err = await resp.json();
-                            throw new Error(err.detail || '启动失败');
+                            const detail = typeof err.detail === 'string' ? err.detail :
+                                          Array.isArray(err.detail) ? err.detail.map(e => e.msg || JSON.stringify(e)).join('; ') :
+                                          (err.detail ? JSON.stringify(err.detail) : '启动失败');
+                            throw new Error(detail);
                         }
                         
                         this.startProgressPolling();
@@ -866,16 +1404,25 @@
                             const data = await resp.json();
                             
                             this.progress = data;
+                            // 更新前端计时（优先用前端计时，回退用服务器时间差）
+                            if (this.transferStartTime) {
+                                this.transferElapsed = Math.floor((Date.now() - this.transferStartTime) / 1000);
+                            } else if (data.transfer_start_time) {
+                                this.transferElapsed = Math.floor((Date.now() - new Date(data.transfer_start_time).getTime()) / 1000);
+                            }
                             
                             if (data.status === 'waiting_confirm' && data.confirm_data) {
                                 this.showOverwriteConfirm = true;
                                 this.confirmMessage = data.confirm_data.message;
                                 this.existingFiles = data.confirm_data.existing_files || [];
                                 clearInterval(this.progressTimer);
+                                this.transferring = false;  // 需要确认时重置，让用户可以操作
                             }
                             
                             if (data.status === 'completed' || data.status === 'error') {
                                 clearInterval(this.progressTimer);
+                                this.progressTimer = null;
+                                this.transferring = false;  // 转存结束，重置按钮状态
                                 this.loadHistory();
                             }
                         } catch (e) {
@@ -904,6 +1451,43 @@
                     }
                 },
                 
+                async restartTask() {
+                    if (!this.currentTask) return;
+                    
+                    this.transferring = true;
+                    this.transferStartTime = Date.now();
+                    this.transferElapsed = 0;
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${this.currentTask}/start`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                task_id: this.currentTask,
+                                overwrite: false
+                            })
+                        });
+                        
+                        if (!resp.ok) {
+                            const data = await resp.json();
+                            throw new Error(data.detail || '重启失败');
+                        }
+                        
+                        this.progress.status = 'running';
+                        this.startProgressPolling();
+                        
+                        this.$nextTick(() => {
+                            const progressSection = document.querySelector('[data-section="progress"]');
+                            if (progressSection) {
+                                progressSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        });
+                    } catch (e) {
+                        this.transferring = false;
+                        alert('重启失败：' + e.message);
+                    }
+                },
+                
                 confirmOverwrite(confirmed) {
                     this.showOverwriteConfirm = false;
                     
@@ -919,6 +1503,274 @@
                     this.batchPreviewData = null;
                     this.currentTask = null;
                     this.currentBatch = null;
+                    this.transferring = false;
+                    this.fileTree = [];
+                    this.treeSelected = {};
+                    this.treeExpanded = {};
+                    this.treeLoading = {};
+                    this.treeStats = { dirs: 0, files: 0, selectedFiles: 0 };
+                    this.shareSurl = '';
+                    if (this.progressTimer) {
+                        clearInterval(this.progressTimer);
+                        this.progressTimer = null;
+                    }
+                },
+                
+                // === 文件树操作（懒加载模式）===
+                
+                async toggleExpand(item, parentPath) {
+                    if (!item.isdir) return;
+                    
+                    const path = item.path;
+                    if (this.treeExpanded[path]) {
+                        // 收起
+                        delete this.treeExpanded[path];
+                        item.children = null;
+                        item.childrenLoaded = false;
+                        return;
+                    }
+                    
+                    // 展开：从API加载子项
+                    this.treeExpanded[path] = true;
+                    this.treeLoading[path] = true;
+                    
+                    try {
+                        const resp = await fetch(`/api/share/expand/${this.currentTask}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Baidu-Cookie': this.cookie
+                            },
+                            body: JSON.stringify({ path: path })
+                        });
+                        
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.detail || '展开失败');
+                        }
+                        
+                        const data = await resp.json();
+                        
+                        // 构建子项
+                        item.children = (data.items || []).map(child => ({
+                            name: child.server_filename || child.path?.split('/').pop() || '未知',
+                            path: child.path,
+                            isdir: parseInt(child.isdir) === 1,
+                            size: child.size || 0,
+                            fs_id: child.fs_id,
+                            children: null,
+                            childrenLoaded: false
+                        }));
+                        item.childrenLoaded = true;
+                        
+                        // 更新统计
+                        this.treeStats.dirs += data.dirs_count || 0;
+                        this.treeStats.files += data.files_count || 0;
+                        
+                    } catch (e) {
+                        console.error('展开目录失败:', e);
+                        alert('展开目录失败：' + e.message);
+                        delete this.treeExpanded[path];
+                    } finally {
+                        delete this.treeLoading[path];
+                    }
+                },
+                
+                toggleSelect(path, isdir) {
+                    if (isdir) {
+                        if (this.treeSelected[path]) {
+                            // Unselect this directory and cascade to all children
+                            delete this.treeSelected[path];
+                            this._setChildrenSelection(path, false);
+                        } else {
+                            // Select this directory and cascade to all children
+                            this.treeSelected[path] = true;
+                            this._setChildrenSelection(path, true);
+                        }
+                        // After toggling a directory, cascade UP to update parent auto-select
+                        this._updateParentSelection(path);
+                    } else {
+                        // File: simple toggle
+                        if (this.treeSelected[path]) {
+                            delete this.treeSelected[path];
+                        } else {
+                            this.treeSelected[path] = true;
+                        }
+                        // After toggling a file, update parent auto-select state (cascades upward)
+                        this._updateParentSelection(path);
+                    }
+                    this.updateTreeStats();
+                },
+
+                // Find an item by path anywhere in the tree (recursive)
+                _findItemByPath(items, targetPath) {
+                    for (const item of items) {
+                        if (item.path === targetPath) return item;
+                        if (item.children) {
+                            const found = this._findItemByPath(item.children, targetPath);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                },
+
+                // Recursively set/unset selection for all children of a directory
+                _setChildrenSelection(parentPath, selected) {
+                    const parent = this._findItemByPath(this.fileTree, parentPath);
+                    if (!parent || !parent.children) return;
+
+                    const setRecursive = (items) => {
+                        for (const item of items) {
+                            if (selected) {
+                                this.treeSelected[item.path] = true;
+                            } else {
+                                delete this.treeSelected[item.path];
+                            }
+                            if (item.children) setRecursive(item.children);
+                        }
+                    };
+                    setRecursive(parent.children);
+                },
+
+                // After toggling a child, check if its parent should be auto-selected/deselected.
+                // Cascades upward: if all siblings are selected, parent gets auto-selected,
+                // then grandparent is checked, etc.
+                _updateParentSelection(childPath) {
+                    const lastSlash = childPath.lastIndexOf('/');
+                    if (lastSlash <= 0) return; // top-level item, no parent in tree
+
+                    const parentPath = childPath.substring(0, lastSlash);
+                    const parent = this._findItemByPath(this.fileTree, parentPath);
+                    if (!parent || !parent.children || parent.children.length === 0) return;
+
+                    // Check if ALL children of the parent are selected
+                    const allChildrenSelected = parent.children.every(
+                        child => !!this.treeSelected[child.path]
+                    );
+
+                    if (allChildrenSelected) {
+                        this.treeSelected[parentPath] = true;
+                        // Continue cascading upward
+                        this._updateParentSelection(parentPath);
+                    } else {
+                        // Not all children selected — remove parent from selection
+                        delete this.treeSelected[parentPath];
+                        // Also cascade upward: grandparent can't be fully selected either
+                        this._updateParentSelection(parentPath);
+                    }
+                },
+                
+                selectAll() {
+                    const addPaths = (items) => {
+                        for (const item of items) {
+                            this.treeSelected[item.path] = true;
+                            if (item.children) addPaths(item.children);
+                        }
+                    };
+                    addPaths(this.fileTree);
+                    this.updateTreeStats();
+                },
+                
+                deselectAll() {
+                    this.treeSelected = {};
+                    this.updateTreeStats();
+                },
+                
+                isSelected(path) {
+                    return !!this.treeSelected[path];
+                },
+                
+                isExpanded(path) {
+                    return !!this.treeExpanded[path];
+                },
+                
+                isLoading(path) {
+                    return !!this.treeLoading[path];
+                },
+                
+                updateTreeStats() {
+                    let selectedFiles = 0;
+                    const countFiles = (items) => {
+                        for (const item of items) {
+                            if (this.treeSelected[item.path] && !item.isdir) {
+                                selectedFiles++;
+                            }
+                            // Always recurse into children to catch individually-selected items
+                            if (item.children) countFiles(item.children);
+                        }
+                    };
+                    countFiles(this.fileTree);
+                    this.treeStats.selectedFiles = selectedFiles;
+                },
+                
+                async transferSelected() {
+                    // 收集选中项，优先用 fs_id
+                    // 如果父目录已选中，跳过子项（避免重复转存）
+                    const items = [];
+                    const collectItems = (treeItems) => {
+                        for (const item of treeItems) {
+                            if (this.treeSelected[item.path]) {
+                                items.push({path: item.path, fs_id: item.fs_id, isdir: item.isdir});
+                                // 父目录已选中，无需再收集子项
+                                continue;
+                            }
+                            if (item.children) collectItems(item.children);
+                        }
+                    };
+                    collectItems(this.fileTree);
+                    
+                    if (items.length === 0) {
+                        alert('请先选择要转存的文件');
+                        return;
+                    }
+                    
+                    this.transferring = true;
+                    this.transferStartTime = Date.now();
+                    this.transferElapsed = 0;
+                    
+                    try {
+                        const resp = await fetch(`/api/share/transfer-selected/${this.currentTask}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Baidu-Cookie': this.cookie
+                            },
+                            body: JSON.stringify({
+                                items: items,
+                                target_path: this.targetPath
+                            })
+                        });
+                        
+                        let respText;
+                        try {
+                            respText = await resp.text();
+                        } catch (textErr) {
+                            throw new Error('转存失败：无法读取服务器响应');
+                        }
+                        
+                        let data;
+                        try {
+                            data = JSON.parse(respText);
+                        } catch (parseErr) {
+                            throw new Error(`服务器返回非JSON响应 (HTTP ${resp.status}): ${respText.slice(0, 200)}`);
+                        }
+                        
+                        if (!resp.ok) {
+                            const detail = typeof data.detail === 'string' ? data.detail :
+                                          Array.isArray(data.detail) ? data.detail.map(e => e.msg || JSON.stringify(e)).join('; ') :
+                                          (data.detail ? JSON.stringify(data.detail) : '转存失败');
+                            throw new Error(detail);
+                        }
+                        
+                        alert(`✅ ${data.message}`);
+                        this.cancelPreview();
+                        this.loadHistory();
+                        
+                    } catch (e) {
+                        alert('转存失败：' + e.message);
+                    } finally {
+                        this.transferring = false;
+                    }
                 },
                 
                 async exportLog() {
@@ -947,6 +1799,19 @@
                         this.historyTasks = await resp.json();
                     } catch (e) {
                         console.error('加载历史任务失败:', e);
+                    }
+                },
+                
+                async clearAllTasks() {
+                    try {
+                        const resp = await fetch('/api/tasks/clear', { method: 'DELETE' });
+                        const data = await resp.json();
+                        this.historyTasks = [];
+                        this.currentTask = null;
+                        this.progress = { status: 'idle', total: 0, completed: 0, failed: 0, failed_files: [], logs: [] };
+                        alert(data.message || '已清空');
+                    } catch (e) {
+                        alert('清空失败：' + e.message);
                     }
                 },
                 
