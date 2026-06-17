@@ -960,10 +960,11 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                           error=task["error"])
                             return
                         elif errno == 2:
-                            # 文件名非法 — 拆成单文件逐个转存，跳过非法文件
+                            # 文件名非法 — 拆成单文件逐个转存，记录具体失败文件
                             add_task_log(task_id, f"第 {batch_num} 批有非法文件名(errno=2)，拆成单文件逐个转存", "WARN")
                             batch_ok = 0
                             batch_fail = 0
+                            failed_names = []
                             for f in batch:
                                 single_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")}]
                                 single_result = api.transfer_files_with_fallback(share_id, uk, single_items, target_path)
@@ -976,10 +977,16 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                     batch_fail += 1
                                     single_errno = single_result.get("errno", 0)
                                     single_error = single_result.get("error", "未知")
+                                    fname = f.get("path", "").split("/")[-1]
+                                    failed_names.append(f"{fname}(errno={single_errno})")
                                     logger.warning(f"单文件转存失败: {f.get('path', '')} errno={single_errno} {single_error}")
                             completed_count += batch_ok
                             failed_count += batch_fail
                             add_task_log(task_id, f"第 {batch_num} 批单文件转存完成: 成功 {batch_ok}, 失败 {batch_fail} (非法文件名)")
+                            if failed_names:
+                                # 只记录前10个失败文件名，避免日志过大
+                                sample = failed_names[:10]
+                                add_task_log(task_id, f"失败文件示例: {', '.join(sample)}", "WARN")
                         else:
                             failed_count += len(batch)
                             add_task_log(task_id, f"第 {batch_num} 批失败: {error} (errno={errno})", "ERROR")
