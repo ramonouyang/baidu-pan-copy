@@ -381,8 +381,11 @@ class BaiduPanAPI:
                 self.bdclnd = self._bdclnd_cache[surl]
                 # 同步到 httpx client cookie jar
                 self.client.cookies.set("BDCLND", self.bdclnd, domain=".baidu.com", path="/")
-                logger.info(f"使用缓存的 BDCLND: surl={surl}")
+                logger.info(f"[BDCLND] 使用缓存: surl={surl}, bdclnd={self.bdclnd[:20]}...")
             else:
+                reason = "force_refresh" if force_refresh else "缓存未命中"
+                old_bdclnd = self._bdclnd_cache.get(surl, "")
+                logger.info(f"[BDCLND] 重新verify: surl={surl}, 原因={reason}, 旧值={old_bdclnd[:20] if old_bdclnd else '无'}...")
                 _global_limiter.acquire(timeout=30.0)
                 verify_params = {
                     "app_id": self.APP_ID,
@@ -408,6 +411,7 @@ class BaiduPanAPI:
                 # 同步到 httpx client cookie jar（确保后续请求自动携带）
                 if self.bdclnd:
                     self.client.cookies.set("BDCLND", self.bdclnd, domain=".baidu.com", path="/")
+                logger.info(f"[BDCLND] verify响应: surl={surl}, errno={verify_data.get('errno', '?')}, 新bdclnd={self.bdclnd[:20] if self.bdclnd else '空'}..., Set-Cookie数={len(verify_resp.headers.get_list('set-cookie'))}")
                 
                 if "error" in verify_data:
                     return verify_data
@@ -437,10 +441,11 @@ class BaiduPanAPI:
                     error_msg = self._handle_error(errno, verify_data.get("errmsg", ""))
                     return {"error": error_msg}
                 
-                # 缓存 BDCLND
+                # 缓存 BDCLND（覆盖旧值）
                 if self.bdclnd:
+                    old_cached = self._bdclnd_cache.get(surl, "")
                     self._bdclnd_cache[surl] = self.bdclnd
-                    logger.info(f"缓存 BDCLND: surl={surl}")
+                    logger.info(f"[BDCLND] 缓存更新: surl={surl}, 旧值={old_cached[:20] if old_cached else '无'}... → 新值={self.bdclnd[:20]}...")
             
             # Step 2: 获取文件列表
             _global_limiter.acquire(timeout=30.0)
@@ -894,10 +899,11 @@ class BaiduPanAPI:
             params = {"a": "commit", "bdstoken": bdstoken, "app_id": self.APP_ID}
             # ⚠️ 必须使用 _share_headers() 包含 BDCLND
             headers = self._share_headers()
+            logger.info(f"[create_dir] 请求: path={path}, bdstoken={bdstoken[:8]}..., BDCLND={self.bdclnd[:20] if self.bdclnd else '空'}...")
             resp = self.client.post(url, params=params, data=data, headers=headers)
             result = safe_json_parse(resp)
             
-            logger.info(f"create_dir响应: path={path}, errno={result.get('errno')}, errmsg={result.get('errmsg', '')}, 完整响应={result}")
+            logger.info(f"[create_dir] 响应: path={path}, errno={result.get('errno')}, errmsg={result.get('errmsg', '')}")
             
             if "error" in result:
                 return result
