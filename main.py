@@ -853,7 +853,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 add_task_log(task_id, "重新验证分享链接（获取新鲜凭证）...")
                 logger.info(f"全量转存：重新 verify 获取 BDCLND...")
                 task["progress"]["current_action"] = "正在验证分享链接（获取新鲜凭证）..."
-                reverify = api.get_share_info(task.get("share_link", ""), task.get("pwd", ""))
+                reverify = api.get_share_info(task.get("share_link", ""), task.get("pwd", ""), force_refresh=True)
                 if reverify.get("error"):
                     add_task_log(task_id, f"重新 verify 失败: {reverify['error']}，尝试用旧 BDCLND 继续", "WARNING")
                     logger.warning(f"重新 verify 失败: {reverify['error']}，尝试用旧 BDCLND 继续")

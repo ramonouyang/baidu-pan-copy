@@ -230,7 +230,7 @@ class BaiduPanAPI:
     SHARE_LIST_URL = f"{BASE_URL}/share/list"
     # ⚠️ 2026-06-16 确认：/share/transfer 返回 404，使用 /rest/2.0/xpan/share?method=transfer
     TRANSFER_URL = f"{BASE_URL}/rest/2.0/xpan/share?method=transfer"
-    CREATE_DIR_URL = f"{BASE_URL}/rest/2.0/xpan/file?method=create"
+    CREATE_DIR_URL = f"{BASE_URL}/api/create"
     FILE_METAS_URL = f"{BASE_URL}/rest/2.0/xpan/multimedia?method=filemetas"
     UINFO_URL = f"{BASE_URL}/rest/2.0/xpan/nas?method=uinfo"
     
@@ -276,6 +276,7 @@ class BaiduPanAPI:
         # BDCLND 缓存
         self._bdclnd_cache = {}  # surl -> bdclnd
         self._children_cache = {}  # "surl:dir_path" -> children list
+        self._bdstoken_cache = ""  # 缓存 bdstoken
     
     def _ensure_client(self):
         """确保 httpx client 可用，如果已关闭则重新创建"""
@@ -289,6 +290,30 @@ class BaiduPanAPI:
         if self.bdclnd:
             h["Cookie"] = f"{self.cookie}; BDCLND={self.bdclnd}"
         return h
+    
+    def _get_bdstoken(self) -> str:
+        """获取 bdstoken（CSRF token），转存 API 必需"""
+        if self._bdstoken_cache:
+            return self._bdstoken_cache
+        try:
+            self._ensure_client()
+            _global_limiter.acquire(timeout=10.0)
+            resp = self.client.get(
+                "https://pan.baidu.com/api/gettemplatevariable",
+                params={"fields": '["bdstoken"]'},
+                headers=self.headers,
+            )
+            data = safe_json_parse(resp)
+            token = data.get("result", {}).get("bdstoken", "")
+            if token:
+                self._bdstoken_cache = token
+                logger.info(f"获取 bdstoken 成功: {token[:8]}...")
+            else:
+                logger.warning(f"获取 bdstoken 失败: {data}")
+            return token
+        except Exception as e:
+            logger.warning(f"获取 bdstoken 异常: {e}")
+            return ""
     
     def _handle_error(self, errno: int, errmsg: str = "") -> str:
         """处理错误码，返回友好的错误信息"""
@@ -340,7 +365,7 @@ class BaiduPanAPI:
             logger.error(f"验证Cookie失败: {e}")
             return {"valid": False, "error": str(e)}
     
-    def get_share_info(self, share_link: str, pwd: str = "") -> dict:
+    def get_share_info(self, share_link: str, pwd: str = "", force_refresh: bool = False) -> dict:
         """获取分享链接信息（通过 verify + list 两步完成）"""
         self._ensure_client()
         surl = self._extract_surl(share_link)
@@ -351,9 +376,11 @@ class BaiduPanAPI:
             # Step 1: 验证分享链接（设置 BDCLND cookie）
             import time as _time
             
-            # 检查 BDCLND 缓存
-            if surl in self._bdclnd_cache:
+            # 检查 BDCLND 缓存（force_refresh 时跳过缓存）
+            if not force_refresh and surl in self._bdclnd_cache:
                 self.bdclnd = self._bdclnd_cache[surl]
+                # 同步到 httpx client cookie jar
+                self.client.cookies.set("BDCLND", self.bdclnd, domain=".baidu.com", path="/")
                 logger.info(f"使用缓存的 BDCLND: surl={surl}")
             else:
                 _global_limiter.acquire(timeout=30.0)
@@ -378,6 +405,9 @@ class BaiduPanAPI:
                 
                 # 提取 BDCLND cookie
                 self.bdclnd = verify_resp.cookies.get("BDCLND", "")
+                # 同步到 httpx client cookie jar（确保后续请求自动携带）
+                if self.bdclnd:
+                    self.client.cookies.set("BDCLND", self.bdclnd, domain=".baidu.com", path="/")
                 
                 if "error" in verify_data:
                     return verify_data
@@ -858,11 +888,13 @@ class BaiduPanAPI:
         self._ensure_client()
         try:
             _global_limiter.acquire(timeout=30.0)
+            bdstoken = self._get_bdstoken()
             url = self.CREATE_DIR_URL
-            data = {"path": path, "isdir": "1", "app_id": self.APP_ID, "channel": "chunlei", "web": "1"}
+            data = {"path": path, "isdir": "1", "block_list": "[]"}
+            params = {"a": "commit", "bdstoken": bdstoken, "app_id": self.APP_ID}
             # ⚠️ 必须使用 _share_headers() 包含 BDCLND
             headers = self._share_headers()
-            resp = self.client.post(url, data=data, headers=headers)
+            resp = self.client.post(url, params=params, data=data, headers=headers)
             result = safe_json_parse(resp)
             
             logger.info(f"create_dir响应: path={path}, errno={result.get('errno')}, errmsg={result.get('errmsg', '')}, 完整响应={result}")
@@ -892,6 +924,9 @@ class BaiduPanAPI:
         """批量转存文件"""
         self._ensure_client()
         
+        # 获取 bdstoken（CSRF token，转存 API 必需）
+        bdstoken = self._get_bdstoken()
+        
         # 确保目标目录存在
         dir_result = self.create_dir(target_path)
         if "error" in dir_result and dir_result.get("error_code") != -7:  # -7 表示目录已存在
@@ -906,7 +941,7 @@ class BaiduPanAPI:
             "from_type": "1",
             "channel": "chunlei",
             "web": "1",
-            "bdstoken": "",
+            "bdstoken": bdstoken,
             "logid": "",
             "clienttype": "0"
         }
