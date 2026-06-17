@@ -5,6 +5,7 @@ import json
 import asyncio
 import threading
 import logging
+import collections
 from typing import Optional, List
 from urllib.parse import quote, unquote
 from functools import wraps
@@ -746,6 +747,92 @@ class BaiduPanAPI:
     def collect_files_start(self):
         """重置收集统计（在调用 collect_files_recursive 前调用）"""
         self._collect_stats = {"dirs_scanned": 0, "api_requests": 0, "seq": 0, "last_req_time": time.time()}
+    
+    def collect_files_per_dir(self, surl: str, root_dir: str = "/"):
+        """流式收集：BFS 逐目录 yield，每处理完一个目录就返回该目录的文件列表
+        
+        流水线模式：收集一个目录 → 转存 → 收集下一个目录 → 转存 ...
+        
+        优势：
+        - BDCLND 不会过期（单目录收集很快，几秒到几十秒）
+        - 每个目录是天然的断点边界
+        - 出问题立即可见
+        
+        Yields:
+            dict: {
+                "dir_path": str,           # 当前目录路径
+                "files": list,             # 该目录下的文件列表（不含子目录）
+                "subdirs": list,           # 该目录下的子目录列表
+                "dirs_scanned": int,       # 已扫描目录数
+                "files_found": int,        # 已发现文件总数
+                "api_requests": int,       # 已消耗API请求数
+                "cached": bool,            # 本次是否命中缓存
+            }
+        """
+        self.collect_files_start()
+        
+        # BFS 队列：(dir_path, parent_child_count)
+        queue = collections.deque()
+        queue.append((root_dir, 0))
+        total_files = 0
+        
+        while queue:
+            dir_path, parent_child_count = queue.popleft()
+            
+            self._collect_stats["seq"] += 1
+            seq = self._collect_stats["seq"]
+            gap = time.time() - self._collect_stats["last_req_time"]
+            logger.info(f"[BFS] seq={seq} dir={dir_path} queue_size={len(queue)} gap={gap:.2f}s")
+            
+            result = self.get_share_children(surl, dir_path, parent_child_count=parent_child_count)
+            self._collect_stats["last_req_time"] = time.time()
+            
+            if "error" in result:
+                logger.warning(f"[BFS] 获取子项失败: {dir_path} → {result['error']}")
+                yield {
+                    "dir_path": dir_path,
+                    "files": [],
+                    "subdirs": [],
+                    "dirs_scanned": self._collect_stats["dirs_scanned"],
+                    "files_found": total_files,
+                    "api_requests": self._collect_stats["api_requests"],
+                    "cached": False,
+                    "error": result["error"],
+                }
+                return  # 遇到错误停止遍历
+            
+            items = result.get("list", [])
+            cached = result.get("cached", False)
+            if not cached:
+                self._collect_stats["api_requests"] += 1
+            self._collect_stats["dirs_scanned"] += 1
+            
+            # 分离文件和子目录
+            files = []
+            subdirs = []
+            for item in items:
+                if int(item.get("isdir", 0)) == 1:
+                    subdirs.append(item)
+                else:
+                    files.append(item)
+            
+            total_files += len(files)
+            
+            # 子目录加入队列
+            for sd in subdirs:
+                sub_path = sd.get("path", "")
+                if sub_path:
+                    queue.append((sub_path, len(items)))
+            
+            yield {
+                "dir_path": dir_path,
+                "files": files,
+                "subdirs": subdirs,
+                "dirs_scanned": self._collect_stats["dirs_scanned"],
+                "files_found": total_files,
+                "api_requests": self._collect_stats["api_requests"],
+                "cached": cached,
+            }
     
     def get_all_share_files(self, surl: str, dir_path: str = "/", depth: int = 0) -> List[dict]:
         """递归获取所有分享文件（同步包装器）"""

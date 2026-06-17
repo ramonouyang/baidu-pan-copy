@@ -795,7 +795,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
     task["progress"] = {"phase": "collecting", "dirs_scanned": 0, "files_found": 0, "api_requests": 0}
     task["error"] = ""  # 清除之前的错误信息
     
-    # 懒加载模式：先递归收集文件，再分批转存（支持断点续传）
+    # 懒加载模式：流水线收集+转存（收集一批→转存一批→再收集下一批）
     if task.get("mode") == "lazy":
         surl = task.get("surl", "")
         share_info = task.get("share_info", {})
@@ -803,69 +803,29 @@ async def start_task(task_id: str, req: ConfirmRequest):
         uk = share_info.get("uk", "")
         target_path = task.get("target_path", "/我的资源")
         
-        # 转存批次大小（每批最多N个文件，避免单次请求过大触发限流）
-        # DTS2026061748509 — 分批转存：每批100个文件，批次间3秒间隔防限流
+        # 单目录内文件超过此数量时分批转存
         TRANSFER_BATCH_SIZE = 100
-        # 批次间等待秒数（避免连续请求触发限流）
+        # 批次间等待秒数（避免限流）
         BATCH_INTERVAL = 3.0
         
         def run_lazy_transfer():
             try:
-                # ===== 阶段1：递归收集所有文件 =====
-                add_task_log(task_id, f"开始全量转存，surl={surl}")
-                logger.info(f"全量转存：开始递归收集文件, surl={surl}")
-                api.collect_files_start()
+                # ===== 阶段1：创建目标目录 =====
+                add_task_log(task_id, f"开始流水线转存，surl={surl}")
+                logger.info(f"流水线转存：开始, surl={surl}, target={target_path}")
                 
-                def on_progress(dirs_scanned, files_found, current_dir, api_requests):
-                    task["progress"] = {
-                        "phase": "collecting",
-                        "dirs_scanned": dirs_scanned,
-                        "files_found": files_found,
-                        "current_dir": current_dir,
-                        "api_requests": api_requests,
-                        "total": 0,
-                        "completed": 0,
-                        "speed": 0,
-                    }
+                # 确保目标目录存在
+                task["progress"] = {"phase": "collecting", "dirs_scanned": 0, "files_found": 0, "api_requests": 0}
+                task["progress"]["current_action"] = "正在创建目标目录..."
+                mkdir_result = api.create_dir(target_path)
+                if not mkdir_result.get("success") and "error" in mkdir_result:
+                    # 目录可能已存在，继续
+                    logger.warning(f"创建目标目录: {mkdir_result.get('error', '')}")
+                add_task_log(task_id, f"目标目录: {target_path}")
                 
-                result = api.collect_files_recursive(surl, "/", progress_callback=on_progress)
-                
-                if result.get("error"):
-                    task["status"] = "error"
-                    task["error"] = f"收集文件失败: {result['error']}"
-                    add_task_log(task_id, f"收集文件失败: {result['error']}", "ERROR")
-                    return
-                
-                all_files = result.get("files", [])
-                dirs_scanned = result.get("dirs_scanned", 0)
-                api_requests = result.get("api_requests", 0)
-                
-                add_task_log(task_id, f"收集完成: {len(all_files)} 个文件, {dirs_scanned} 个目录, {api_requests} 次API请求")
-                logger.info(f"全量转存：收集完成, {len(all_files)} 个文件, {dirs_scanned} 个目录, {api_requests} 次API请求")
-                
-                if not all_files:
-                    task["status"] = "completed"
-                    task["result"] = {"completed": 0, "failed": 0, "message": "未找到任何文件"}
-                    add_task_log(task_id, "未找到任何文件，任务完成", "WARNING")
-                    return
-                
-                # ===== 阶段2：重新 verify 获取新鲜 BDCLND =====
-                add_task_log(task_id, "重新验证分享链接（获取新鲜凭证）...")
-                logger.info(f"全量转存：重新 verify 获取 BDCLND...")
-                task["progress"]["current_action"] = "正在验证分享链接（获取新鲜凭证）..."
-                reverify = api.get_share_info(task.get("share_link", ""), task.get("pwd", ""), force_refresh=True)
-                if reverify.get("error"):
-                    add_task_log(task_id, f"重新 verify 失败: {reverify['error']}，尝试用旧 BDCLND 继续", "WARNING")
-                    logger.warning(f"重新 verify 失败: {reverify['error']}，尝试用旧 BDCLND 继续")
-                else:
-                    add_task_log(task_id, "重新 verify 成功，BDCLND 已刷新")
-                    logger.info(f"全量转存：重新 verify 成功，BDCLND 已刷新")
-                
-                # ===== 阶段3：加载断点（如果有） =====
-                # 先从内存加载，如果没有则从DB加载（支持服务器重启后续传）
+                # ===== 阶段2：加载断点 =====
                 checkpoint = task.get("checkpoint", {})
                 if not checkpoint or not checkpoint.get("transferred_fs_ids"):
-                    # 尝试从DB加载断点（按 share_link + target_path 匹配）
                     try:
                         conn = sqlite3.connect(DB_PATH)
                         c = conn.cursor()
@@ -884,154 +844,152 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         logger.warning(f"从DB加载断点失败: {e}")
                 
                 transferred_fs_ids = set(checkpoint.get("transferred_fs_ids", []))
-                start_batch_index = checkpoint.get("last_batch_index", 0)
-                
-                # 过滤已转存的文件
-                remaining_files = []
-                for f in all_files:
-                    fs_id = f.get("fs_id")
-                    if fs_id and fs_id in transferred_fs_ids:
-                        continue  # 已转存，跳过
-                    remaining_files.append(f)
-                
-                total_files = len(all_files)
-                already_done = total_files - len(remaining_files)
-                
-                if already_done > 0:
-                    add_task_log(task_id, f"断点续传：已跳过 {already_done}/{total_files} 个已转存文件，从第 {start_batch_index + 1} 批开始")
-                    logger.info(f"断点续传：跳过 {already_done} 个已转存文件")
-                
-                # ===== 阶段4：分批转存 =====
-                task["progress"] = {
-                    "phase": "transferring",
-                    "dirs_scanned": dirs_scanned,
-                    "files_found": total_files,
-                    "api_requests": api_requests,
-                    "total": total_files,
-                    "completed": already_done,
-                    "failed": 0,
-                    "speed": 0,
-                    "current_batch": start_batch_index,
-                    "total_batches": (len(remaining_files) + TRANSFER_BATCH_SIZE - 1) // TRANSFER_BATCH_SIZE + start_batch_index,
-                }
-                
-                add_task_log(task_id, f"开始分批转存: {len(remaining_files)} 个待转存文件, 每批 {TRANSFER_BATCH_SIZE} 个")
-                
-                completed_count = already_done
+                completed_count = len(transferred_fs_ids)
                 failed_count = 0
                 transfer_start_ts = time.time()
+                dir_index = 0
                 
-                for batch_idx, i in enumerate(range(0, len(remaining_files), TRANSFER_BATCH_SIZE)):
-                    batch_num = start_batch_index + batch_idx + 1
-                    batch = remaining_files[i:i + TRANSFER_BATCH_SIZE]
+                if completed_count > 0:
+                    add_task_log(task_id, f"断点续传：已有 {completed_count} 个文件已转存，跳过已转存目录")
+                
+                # ===== 阶段3：流水线 — 收集一个目录 → 转存一批 =====
+                add_task_log(task_id, "开始流水线：收集→转存→收集→转存...")
+                
+                for batch in api.collect_files_per_dir(surl, "/"):
+                    dir_path = batch["dir_path"]
+                    files = batch["files"]
+                    dirs_scanned = batch["dirs_scanned"]
+                    files_found = batch["files_found"]
+                    api_requests = batch["api_requests"]
+                    cached = batch["cached"]
+                    dir_index += 1
                     
-                    task["progress"]["current_batch"] = batch_num
-                    task["progress"]["current_action"] = f"正在转存第 {batch_num} 批 ({len(batch)} 个文件)..."
-                    add_task_log(task_id, f"开始第 {batch_num} 批转存: {len(batch)} 个文件")
+                    # 错误处理
+                    if batch.get("error"):
+                        add_task_log(task_id, f"目录 {dir_path} 收集失败: {batch['error']}", "ERROR")
+                        task["status"] = "error"
+                        task["error"] = f"收集失败: {batch['error']}"
+                        _save_checkpoint(task_id, transferred_fs_ids, dir_index, files_found)
+                        _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
+                        return
                     
-                    # 构建转存列表
-                    transfer_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")} for f in batch]
+                    # 更新进度（收集阶段）
+                    task["progress"] = {
+                        "phase": "pipeline",
+                        "dirs_scanned": dirs_scanned,
+                        "files_found": files_found,
+                        "api_requests": api_requests,
+                        "total": files_found,  # 持续更新，因为文件数还在增长
+                        "completed": completed_count,
+                        "failed": failed_count,
+                        "speed": 0,
+                        "current_dir": dir_path,
+                        "current_action": f"收集 {dir_path} ({len(files)} 文件) → 准备转存",
+                    }
                     
-                    # 执行转存（fs_id → path 自动降级）
-                    transfer_result = api.transfer_files_with_fallback(share_id, uk, transfer_items, target_path)
+                    # 无文件跳过
+                    if not files:
+                        logger.info(f"[流水线] {dir_path}: 0 文件, 跳过")
+                        continue
                     
-                    if transfer_result.get("success"):
-                        completed_count += len(batch)
-                        # 记录本批成功转存的 fs_id 到断点
-                        for f in batch:
-                            fs_id = f.get("fs_id")
-                            if fs_id:
-                                transferred_fs_ids.add(fs_id)
-                        add_task_log(task_id, f"第 {batch_num} 批成功: {len(batch)} 个文件")
-                    else:
-                        error = transfer_result.get("error", "未知错误")
-                        errno = transfer_result.get("errno", 0)
+                    # 过滤已转存文件
+                    remaining = [f for f in files if f.get("fs_id") and f["fs_id"] not in transferred_fs_ids]
+                    if not remaining:
+                        logger.info(f"[流水线] {dir_path}: {len(files)} 文件全部已转存, 跳过")
+                        continue
+                    
+                    # ===== 转存该目录的文件 =====
+                    action = f"转存 {dir_path} ({len(remaining)} 文件, 已跳过 {len(files)-len(remaining)})"
+                    task["progress"]["current_action"] = action
+                    add_task_log(task_id, f"[流水线] {dir_path}: {len(files)} 文件, {len(remaining)} 待转存")
+                    
+                    # 如果文件数超过批次大小，分批转存
+                    for sub_i in range(0, len(remaining), TRANSFER_BATCH_SIZE):
+                        sub_batch = remaining[sub_i:sub_i + TRANSFER_BATCH_SIZE]
+                        transfer_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")} for f in sub_batch]
                         
-                        if errno in (-62, -9):
-                            # 限流 — 保存断点后停止
-                            add_task_log(task_id, f"第 {batch_num} 批被限流(errno={errno})，保存断点并停止", "ERROR")
-                            failed_count += len(batch)
-                            task["progress"]["failed"] = failed_count
-                            # 保存断点
-                            _save_checkpoint(task_id, transferred_fs_ids, batch_num - 1, total_files)
-                            task["status"] = "error"
-                            task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{total_files}），请稍后重新启动任务继续"
-                            _update_task_db(task_id, "error", completed_count, failed_count, total_files,
-                                          error=task["error"])
-                            return
-                        elif errno == 2:
-                            # 文件名非法 — 拆成单文件逐个转存，记录具体失败文件
-                            add_task_log(task_id, f"第 {batch_num} 批有非法文件名(errno=2)，拆成单文件逐个转存", "WARN")
-                            batch_ok = 0
-                            batch_fail = 0
-                            failed_names = []
-                            for f in batch:
-                                single_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")}]
-                                single_result = api.transfer_files_with_fallback(share_id, uk, single_items, target_path)
-                                if single_result.get("success"):
-                                    batch_ok += 1
-                                    fs_id = f.get("fs_id")
-                                    if fs_id:
-                                        transferred_fs_ids.add(fs_id)
-                                else:
-                                    batch_fail += 1
-                                    single_errno = single_result.get("errno", 0)
-                                    single_error = single_result.get("error", "未知")
-                                    fname = f.get("path", "").split("/")[-1]
-                                    failed_names.append(f"{fname}(errno={single_errno})")
-                                    logger.warning(f"单文件转存失败: {f.get('path', '')} errno={single_errno} {single_error}")
-                            completed_count += batch_ok
-                            failed_count += batch_fail
-                            add_task_log(task_id, f"第 {batch_num} 批单文件转存完成: 成功 {batch_ok}, 失败 {batch_fail} (非法文件名)")
-                            if failed_names:
-                                # 只记录前10个失败文件名，避免日志过大
-                                sample = failed_names[:10]
-                                add_task_log(task_id, f"失败文件示例: {', '.join(sample)}", "WARN")
+                        transfer_result = api.transfer_files_with_fallback(share_id, uk, transfer_items, target_path)
+                        
+                        if transfer_result.get("success"):
+                            completed_count += len(sub_batch)
+                            for f in sub_batch:
+                                fs_id = f.get("fs_id")
+                                if fs_id:
+                                    transferred_fs_ids.add(fs_id)
+                            logger.info(f"[流水线] {dir_path}: 转存成功 {len(sub_batch)} 文件")
                         else:
-                            failed_count += len(batch)
-                            add_task_log(task_id, f"第 {batch_num} 批失败: {error} (errno={errno})", "ERROR")
+                            error = transfer_result.get("error", "未知错误")
+                            errno = transfer_result.get("errno", 0)
+                            
+                            if errno in (-62, -9):
+                                add_task_log(task_id, f"[流水线] {dir_path}: 被限流(errno={errno})，保存断点停止", "ERROR")
+                                failed_count += len(sub_batch)
+                                _save_checkpoint(task_id, transferred_fs_ids, dir_index, files_found)
+                                task["status"] = "error"
+                                task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}），请稍后重新启动"
+                                _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
+                                return
+                            elif errno == 2:
+                                # 文件名非法 — 逐个转存
+                                add_task_log(task_id, f"[流水线] {dir_path}: errno=2, 逐个转存", "WARN")
+                                for f in sub_batch:
+                                    single_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")}]
+                                    sr = api.transfer_files_with_fallback(share_id, uk, single_items, target_path)
+                                    if sr.get("success"):
+                                        completed_count += 1
+                                        fs_id = f.get("fs_id")
+                                        if fs_id:
+                                            transferred_fs_ids.add(fs_id)
+                                    else:
+                                        failed_count += 1
+                                        fname = f.get("path", "").split("/")[-1]
+                                        logger.warning(f"[流水线] 单文件失败: {fname} errno={sr.get('errno', '?')}")
+                            else:
+                                failed_count += len(sub_batch)
+                                add_task_log(task_id, f"[流水线] {dir_path}: 失败 {error} (errno={errno})", "ERROR")
+                        
+                        # 批次间等待
+                        if sub_i + TRANSFER_BATCH_SIZE < len(remaining):
+                            time.sleep(BATCH_INTERVAL)
                     
-                    # 更新进度
+                    # 每个目录转存完保存断点
+                    _save_checkpoint(task_id, transferred_fs_ids, dir_index, files_found)
+                    
+                    # 更新进度（转存阶段）
                     elapsed = time.time() - transfer_start_ts
-                    # DTS2026061748507 — 计算实时转存速度（文件/秒）
                     speed = round(completed_count / elapsed, 1) if elapsed > 0 else 0
-                    
-                    task["progress"]["completed"] = completed_count
-                    task["progress"]["failed"] = failed_count
-                    task["progress"]["speed"] = speed
-                    
-                    # 每批完成后保存断点
-                    _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
-                    
-                    # 批次间等待（避免限流）
-                    if i + TRANSFER_BATCH_SIZE < len(remaining_files):
-                        time.sleep(BATCH_INTERVAL)
+                    task["progress"].update({
+                        "completed": completed_count,
+                        "failed": failed_count,
+                        "speed": speed,
+                        "current_action": f"已完成 {dir_path}，继续收集...",
+                    })
                 
-                # ===== 阶段5：完成 =====
+                # ===== 阶段4：完成 =====
+                total_elapsed = time.time() - transfer_start_ts
                 task["progress"]["phase"] = "completed"
-                task["progress"]["speed"] = round(completed_count / (time.time() - transfer_start_ts), 1) if (time.time() - transfer_start_ts) > 0 else 0
+                task["progress"]["speed"] = round(completed_count / total_elapsed, 1) if total_elapsed > 0 else 0
                 task["status"] = "completed"
                 task["result"] = {
                     "completed": completed_count,
                     "failed": failed_count,
-                    "dirs_scanned": dirs_scanned,
-                    "api_requests": api_requests
+                    "dirs_scanned": dir_index,
+                    "api_requests": api._collect_stats.get("api_requests", 0),
                 }
                 
-                add_task_log(task_id, f"转存完成: 成功 {completed_count}, 失败 {failed_count}, 总耗时 {int(time.time() - transfer_start_ts)}s")
-                _update_task_db(task_id, "completed", completed_count, failed_count, total_files)
-                # 清除断点（任务已完成）
+                add_task_log(task_id, f"流水线转存完成: 成功 {completed_count}, 失败 {failed_count}, 耗时 {int(total_elapsed)}s")
+                _update_task_db(task_id, "completed", completed_count, failed_count, completed_count + failed_count)
                 _clear_checkpoint(task_id)
                     
             except Exception as e:
-                logger.error(f"全量转存异常: {e}")
+                logger.error(f"流水线转存异常: {e}")
                 add_task_log(task_id, f"转存异常: {e}", "ERROR")
                 task["status"] = "error"
                 task["error"] = str(e)
                 _update_task_db(task_id, "error", 
                               task["progress"].get("completed", 0),
                               task["progress"].get("failed", 0),
-                              task["progress"].get("total", 0),
+                              task["progress"].get("files_found", 0),
                               error=str(e))
             finally:
                 if api and not api.client.is_closed:
@@ -1041,9 +999,9 @@ async def start_task(task_id: str, req: ConfirmRequest):
         thread.start()
         
         return {
-            "message": "全量转存已启动（正在递归收集文件...）",
+            "message": "流水线转存已启动（收集→转存→收集→转存...）",
             "task_id": task_id,
-            "total": 0  # 收集完成后前端轮询会获取真实数量
+            "total": 0
         }
     
     # 旧模式：有 manager，使用 manager.execute_transfer
