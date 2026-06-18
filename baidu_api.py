@@ -748,25 +748,25 @@ class BaiduPanAPI:
         """重置收集统计（在调用 collect_files_recursive 前调用）"""
         self._collect_stats = {"dirs_scanned": 0, "api_requests": 0, "seq": 0, "last_req_time": time.time()}
     
-    def collect_files_per_dir(self, surl: str, root_dir: str = "/"):
-        """流式收集：BFS 逐目录 yield，每处理完一个目录就返回该目录的文件列表
+    def collect_files_batch(self, surl: str, batch_size: int = 100, root_dir: str = "/"):
+        """流式收集：BFS 逐目录扫描，每攒够 batch_size 个文件就 yield 一批
         
-        流水线模式：收集一个目录 → 转存 → 收集下一个目录 → 转存 ...
+        收集一批 → 转存 → 收集下一批 → 转存 ...
+        BDCLND 不会过期（每批收集耗时远低于 15 分钟过期窗口）
         
-        优势：
-        - BDCLND 不会过期（单目录收集很快，几秒到几十秒）
-        - 每个目录是天然的断点边界
-        - 出问题立即可见
-        
+        Args:
+            surl: 分享链接短码
+            batch_size: 每批文件数（默认100，与转存API上限对齐）
+            root_dir: 起始目录
+            
         Yields:
             dict: {
-                "dir_path": str,           # 当前目录路径
-                "files": list,             # 该目录下的文件列表（不含子目录）
-                "subdirs": list,           # 该目录下的子目录列表
-                "dirs_scanned": int,       # 已扫描目录数
+                "files": list,             # 本批文件列表（最多 batch_size 个）
+                "dirs_scanned": int,       # 已扫描目录总数
                 "files_found": int,        # 已发现文件总数
                 "api_requests": int,       # 已消耗API请求数
-                "cached": bool,            # 本次是否命中缓存
+                "batch_num": int,          # 第几批（从1开始）
+                "error": str|None,         # 错误信息（仅最后一批可能有）
             }
         """
         self.collect_files_start()
@@ -775,6 +775,8 @@ class BaiduPanAPI:
         queue = collections.deque()
         queue.append((root_dir, 0))
         total_files = 0
+        batch_num = 0
+        buffer = []  # 攒文件的缓冲区
         
         while queue:
             dir_path, parent_child_count = queue.popleft()
@@ -782,24 +784,36 @@ class BaiduPanAPI:
             self._collect_stats["seq"] += 1
             seq = self._collect_stats["seq"]
             gap = time.time() - self._collect_stats["last_req_time"]
-            logger.info(f"[BFS] seq={seq} dir={dir_path} queue_size={len(queue)} gap={gap:.2f}s")
+            logger.info(f"[BFS] seq={seq} dir={dir_path} queue={len(queue)} buffer={len(buffer)} gap={gap:.2f}s")
             
             result = self.get_share_children(surl, dir_path, parent_child_count=parent_child_count)
             self._collect_stats["last_req_time"] = time.time()
             
             if "error" in result:
                 logger.warning(f"[BFS] 获取子项失败: {dir_path} → {result['error']}")
+                # 把缓冲区剩余文件作为最后一批 yield
+                if buffer:
+                    batch_num += 1
+                    yield {
+                        "files": buffer,
+                        "dirs_scanned": self._collect_stats["dirs_scanned"],
+                        "files_found": total_files,
+                        "api_requests": self._collect_stats["api_requests"],
+                        "batch_num": batch_num,
+                        "error": None,
+                    }
+                    buffer = []
+                # yield 错误批次
+                batch_num += 1
                 yield {
-                    "dir_path": dir_path,
                     "files": [],
-                    "subdirs": [],
                     "dirs_scanned": self._collect_stats["dirs_scanned"],
                     "files_found": total_files,
                     "api_requests": self._collect_stats["api_requests"],
-                    "cached": False,
+                    "batch_num": batch_num,
                     "error": result["error"],
                 }
-                return  # 遇到错误停止遍历
+                return
             
             items = result.get("list", [])
             cached = result.get("cached", False)
@@ -808,30 +822,49 @@ class BaiduPanAPI:
             self._collect_stats["dirs_scanned"] += 1
             
             # 分离文件和子目录
-            files = []
-            subdirs = []
             for item in items:
                 if int(item.get("isdir", 0)) == 1:
-                    subdirs.append(item)
+                    sub_path = item.get("path", "")
+                    if sub_path:
+                        queue.append((sub_path, len(items)))
                 else:
-                    files.append(item)
+                    buffer.append(item)
+                    total_files += 1
             
-            total_files += len(files)
-            
-            # 子目录加入队列
-            for sd in subdirs:
-                sub_path = sd.get("path", "")
-                if sub_path:
-                    queue.append((sub_path, len(items)))
-            
+            # 缓冲区满 → yield 一批
+            while len(buffer) >= batch_size:
+                batch_num += 1
+                yield {
+                    "files": buffer[:batch_size],
+                    "dirs_scanned": self._collect_stats["dirs_scanned"],
+                    "files_found": total_files,
+                    "api_requests": self._collect_stats["api_requests"],
+                    "batch_num": batch_num,
+                    "error": None,
+                }
+                buffer = buffer[batch_size:]
+        
+        # BFS 结束，yield 缓冲区剩余文件
+        if buffer:
+            batch_num += 1
             yield {
-                "dir_path": dir_path,
-                "files": files,
-                "subdirs": subdirs,
+                "files": buffer,
                 "dirs_scanned": self._collect_stats["dirs_scanned"],
                 "files_found": total_files,
                 "api_requests": self._collect_stats["api_requests"],
-                "cached": cached,
+                "batch_num": batch_num,
+                "error": None,
+            }
+        
+        # 空目录情况
+        if batch_num == 0:
+            yield {
+                "files": [],
+                "dirs_scanned": self._collect_stats["dirs_scanned"],
+                "files_found": 0,
+                "api_requests": self._collect_stats["api_requests"],
+                "batch_num": 1,
+                "error": None,
             }
     
     def get_all_share_files(self, surl: str, dir_path: str = "/", depth: int = 0) -> List[dict]:
