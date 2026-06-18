@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>百度网盘批量转存工具</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
@@ -16,13 +21,48 @@
         .dark .bg-white { background-color: #16213e; }
         .dark .bg-gray-100 { background-color: #0f0f23; }
         .dark .bg-gray-50 { background-color: #1a1a2e; }
+        .dark .bg-gray-200 { background-color: #1e293b; }
+        .dark .bg-gray-300 { background-color: #334155; }
+        .dark .bg-gray-400 { background-color: #475569; }
         .dark .text-gray-800 { color: #e2e8f0; }
         .dark .text-gray-700 { color: #cbd5e1; }
         .dark .text-gray-600 { color: #94a3b8; }
+        .dark .text-gray-500 { color: #94a3b8; }
+        .dark .text-gray-400 { color: #64748b; }
+        .dark .text-gray-300 { color: #475569; }
+        .dark .text-gray-200 { color: #334155; }
+        .dark .text-gray-100 { color: #1e293b; }
+        .dark .text-blue-800 { color: #93c5fd; }
+        .dark .text-red-800 { color: #fca5a5; }
+        .dark .text-yellow-800 { color: #fde68a; }
+        .dark .text-purple-800 { color: #c4b5fd; }
+        .dark .text-green-800 { color: #86efac; }
+        .dark .bg-blue-50 { background-color: #1e3a5f; }
+        .dark .bg-green-50 { background-color: #14532d; }
+        .dark .bg-red-50 { background-color: #7f1d1d; }
+        .dark .bg-yellow-100 { background-color: #713f12; }
+        .dark .bg-purple-50 { background-color: #3b0764; }
+        .dark .bg-orange-50 { background-color: #7c2d12; }
+        .dark .bg-red-100 { background-color: #7f1d1d; }
+        .dark .bg-green-100 { background-color: #14532d; }
         .dark .border-gray-300 { border-color: #334155; }
         .dark .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
         .dark input, .dark textarea { background-color: #1e293b; color: #e2e8f0; border-color: #334155; }
         .dark input:focus, .dark textarea:focus { ring-color: #3b82f6; }
+        .dark .hover\:bg-gray-200:hover { background-color: #334155; }
+        .dark .hover\:bg-gray-300:hover { background-color: #475569; }
+        .dark .hover\\:bg-gray-400:hover { background-color: #64748b; }
+        .dark .hover\\:text-gray-700:hover { color: #cbd5e1; }
+        .dark .dark\\:bg-gray-700 { background-color: #374151; }
+        .dark .dark\\:hover\\:bg-gray-600:hover { background-color: #4b5563; }
+        .dark .dark\\:bg-blue-900 { background-color: #1e3a5f; }
+        .dark .dark\\:bg-green-900 { background-color: #14532d; }
+        .dark .dark\\:bg-orange-900 { background-color: #7c2d12; }
+        .dark .dark\\:bg-purple-900 { background-color: #3b0764; }
+        .dark .dark\\:text-blue-300 { color: #93c5fd; }
+        .dark .dark\\:text-green-300 { color: #86efac; }
+        .dark .dark\\:text-orange-300 { color: #fdba74; }
+        .dark .dark\\:text-purple-300 { color: #c4b5fd; }
         
         /* 引导遮罩 */
         .tour-overlay {
@@ -65,7 +105,7 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8" x-data="app()" x-init="init()" :class="{ 'dark': darkMode }">
+    <div class="container mx-auto px-4 py-8" x-data="app()" x-init="init(); $watch('darkMode', v => document.documentElement.classList.toggle('dark', v)); document.documentElement.classList.toggle('dark', darkMode)" :class="{ 'dark': darkMode }">
         <!-- 顶部导航 -->
         <div class="flex justify-between items-center mb-8">
             <div class="text-center flex-1">
@@ -652,13 +692,18 @@
                     >
                         继续
                     </button>
+                    <!-- DTS2026061748509 — 断点续传/重新启动按钮 -->
+                    <!-- DTS2026061801236 — 按钮样式优化：渐变+SVG+动画 -->
+                    <!-- DTS2026061899196 — 注释移到标签外，修复原始代码渲染 -->
                     <button 
                         x-show="progress.status === 'error' && currentTask" 
-                        <!-- DTS2026061748509 — 断点续传/重新启动按钮 -->
                         @click="restartTask()"
-                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                        class="group inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-indigo-600 active:scale-95 transition-all text-sm font-medium"
                     >
-                        <span x-text="progress.has_checkpoint ? '🔄 断点续传' : '🔄 重新启动'"></span>
+                        <svg class="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        <span x-text="progress.has_checkpoint ? '断点续传' : '重新启动'"></span>
                     </button>
                 </div>
             </h2>
@@ -1436,6 +1481,8 @@
                     
                     try {
                         await fetch(`/api/task/${this.currentTask}/pause`, { method: 'POST' });
+                        // 立即更新前端状态，让用户看到按钮变化
+                        this.progress.status = 'paused';
                     } catch (e) {
                         console.error('暂停失败:', e);
                     }
@@ -1446,6 +1493,8 @@
                     
                     try {
                         await fetch(`/api/task/${this.currentTask}/resume`, { method: 'POST' });
+                        // 立即更新前端状态
+                        this.progress.status = 'running';
                     } catch (e) {
                         console.error('恢复失败:', e);
                     }

@@ -293,8 +293,16 @@ async def receive_cookie(req: CookieRequest):
     if not req.cookie or "BDUSS" not in req.cookie:
         return JSONResponse({"ok": False, "message": "未检测到有效的百度网盘Cookie，请先登录"})
 
+    # DTS2026061801235 — STOKEN 缺失会导致转存 errno=-3
+    has_stoken = "STOKEN" in req.cookie
+    if not has_stoken:
+        logger.warning("[cookie] Cookie 中缺少 STOKEN，转存功能可能无法使用")
+
     _received_cookie["cookie"] = req.cookie
-    return {"ok": True, "message": "Cookie已接收"}
+    msg = "Cookie已接收"
+    if not has_stoken:
+        msg += "（⚠️ 缺少 STOKEN，转存可能失败，请从浏览器补充 STOKEN）"
+    return {"ok": True, "message": msg, "has_stoken": has_stoken}
 
 
 @app.get("/api/cookie/poll")
@@ -567,6 +575,15 @@ async def transfer_selected(task_id: str, request: Request):
     
     logger.info(f"开始转存: {len(unique_files)} 个文件 (来自 {len(direct_files)} 个直接文件 + {len(dir_paths)} 个目录展开, {total_api_requests} 次API请求)")
     
+    # DTS2026061827298 — 目标目录由调用方创建（transfer_files 不再内部创建）
+    # 先检查是否存在，避免百度创建带时间戳的副本目录
+    if api.check_file_exists(target_path):
+        logger.info(f"目标目录已存在，跳过创建: {target_path}")
+    else:
+        mkdir_result = api.create_dir(target_path)
+        if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+            logger.warning(f"创建目标目录失败: {mkdir_result}")
+    
     # 使用 transfer_files_with_fallback（fs_id → path 自动降级）
     result = api.transfer_files_with_fallback(share_id, uk, unique_files, target_path)
     
@@ -813,13 +830,17 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 add_task_log(task_id, f"开始流水线转存，surl={surl}")
                 logger.info(f"流水线转存：开始, surl={surl}, target={target_path}, batch_size={BATCH_SIZE}")
                 
-                # 确保目标目录存在
+                # 确保目标目录存在（DTS2026061827298 — 先检查是否存在，避免百度创建带时间戳的副本目录）
                 task["progress"] = {"phase": "collecting", "dirs_scanned": 0, "files_found": 0, "api_requests": 0}
                 task["progress"]["current_action"] = "正在创建目标目录..."
-                mkdir_result = api.create_dir(target_path)
-                if not mkdir_result.get("success") and "error" in mkdir_result:
-                    logger.warning(f"创建目标目录: {mkdir_result.get('error', '')}")
-                add_task_log(task_id, f"目标目录: {target_path}")
+                if api.check_file_exists(target_path):
+                    logger.info(f"目标目录已存在，跳过创建: {target_path}")
+                    add_task_log(task_id, f"目标目录已存在: {target_path}")
+                else:
+                    mkdir_result = api.create_dir(target_path)
+                    if not mkdir_result.get("success") and "error" in mkdir_result:
+                        logger.warning(f"创建目标目录: {mkdir_result.get('error', '')}")
+                    add_task_log(task_id, f"目标目录: {target_path}")
                 
                 # ===== 阶段2：加载断点 =====
                 checkpoint = task.get("checkpoint", {})
@@ -850,10 +871,27 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 if completed_count > 0:
                     add_task_log(task_id, f"断点续传：已有 {completed_count} 个文件已转存")
                 
+                # ===== 阶段2.5：验证 cookie 有效性 =====
+                # DTS2026061801239 — 启动前验证 cookie，避免流水线启动后才报错
+                add_task_log(task_id, "验证 cookie 有效性...")
+                cookie_check = api.validate_cookie()
+                if not cookie_check.get("valid"):
+                    error_msg = cookie_check.get("error", "未知原因")
+                    add_task_log(task_id, f"Cookie 已失效: {error_msg}，请重新设置 cookie 后重试", "ERROR")
+                    task["status"] = "error"
+                    task["error"] = f"Cookie 已失效: {error_msg}，请重新设置 cookie"
+                    _update_task_db(task_id, "error", 0, 0, 0, error=task["error"])
+                    return
+                add_task_log(task_id, f"Cookie 有效，用户: {cookie_check.get('username', '未知')}")
+
                 # ===== 阶段3：流水线 — 收集一批 → 转存一批 =====
                 add_task_log(task_id, f"开始流水线：每收集 {BATCH_SIZE} 个文件立即转存")
                 
                 for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
+                    # DTS2026061801241 — 暂停检查：等待直到用户继续
+                    while task.get("paused"):
+                        time.sleep(1)
+                    
                     files = batch["files"]
                     dirs_scanned = batch["dirs_scanned"]
                     files_found = batch["files_found"]
@@ -914,6 +952,15 @@ async def start_task(task_id: str, req: ConfirmRequest):
                             _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
                             task["status"] = "error"
                             task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}），请稍后重新启动"
+                            _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
+                            return
+                        elif errno in (-3, -4):
+                            # DTS2026061801240 — Cookie 过期 — 立即停止，保存断点
+                            add_task_log(task_id, f"第{batch_num}批失败: Cookie 已失效(errno={errno})，请重新设置 cookie 后重启任务", "ERROR")
+                            failed_count += len(remaining)
+                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                            task["status"] = "error"
+                            task["error"] = f"Cookie 已失效，已保存断点（已完成 {completed_count}/{files_found}），请重新设置 cookie 后重启"
                             _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
                             return
                         elif errno == 2:
@@ -1049,10 +1096,16 @@ async def pause_task(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
     
     task = active_tasks[task_id]
-    manager = task["manager"]
-    manager.pause()
-    task["status"] = "paused"
+    # DTS2026061801241 — 改用 paused 标志，兼容 lazy 模式（无 manager）
+    task["paused"] = True
     
+    # 旧模式：有 manager
+    manager = task.get("manager")
+    if manager:
+        manager.pause()
+    
+    task["status"] = "paused"
+    add_task_log(task_id, "任务已暂停", "INFO")
     return {"message": "任务已暂停", "task_id": task_id}
 
 
@@ -1063,10 +1116,16 @@ async def resume_task(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
     
     task = active_tasks[task_id]
-    manager = task["manager"]
-    manager.resume()
-    task["status"] = "running"
+    # DTS2026061801241 — 改用 paused 标志，兼容 lazy 模式（无 manager）
+    task["paused"] = False
     
+    # 旧模式：有 manager
+    manager = task.get("manager")
+    if manager:
+        manager.resume()
+    
+    task["status"] = "running"
+    add_task_log(task_id, "任务已继续", "INFO")
     return {"message": "任务已恢复", "task_id": task_id}
 
 

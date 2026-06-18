@@ -288,13 +288,17 @@ class BaiduPanAPI:
     def _share_headers(self) -> dict:
         """返回包含 BDCLND cookie 的请求头"""
         h = self.headers.copy()
+        # Cookie 始终包含基础 cookie（BDUSS、STOKEN 等）
+        cookie_val = self.cookie
         if self.bdclnd:
-            h["Cookie"] = f"{self.cookie}; BDCLND={self.bdclnd}"
+            cookie_val = f"{self.cookie}; BDCLND={self.bdclnd}"
+        h["Cookie"] = cookie_val
         return h
     
     def _get_bdstoken(self) -> str:
         """获取 bdstoken（CSRF token），转存 API 必需"""
         if self._bdstoken_cache:
+            # DTS2026061793850 — 补充 bdstoken 缓存命中日志
             logger.info(f"[bdstoken] 缓存命中: {self._bdstoken_cache[:8]}...")
             return self._bdstoken_cache
         try:
@@ -381,8 +385,7 @@ class BaiduPanAPI:
             # 检查 BDCLND 缓存（force_refresh 时跳过缓存）
             if not force_refresh and surl in self._bdclnd_cache:
                 self.bdclnd = self._bdclnd_cache[surl]
-                # 同步到 httpx client cookie jar
-                self.client.cookies.set("BDCLND", self.bdclnd, domain=".baidu.com", path="/")
+                # DTS2026061801237 — 不再同步到 cookie jar，避免污染
                 logger.info(f"[BDCLND] 使用缓存: surl={surl}, bdclnd={self.bdclnd[:20]}...")
             else:
                 reason = "force_refresh" if force_refresh else "缓存未命中"
@@ -410,9 +413,8 @@ class BaiduPanAPI:
                 
                 # 提取 BDCLND cookie
                 self.bdclnd = verify_resp.cookies.get("BDCLND", "")
-                # 同步到 httpx client cookie jar（确保后续请求自动携带）
-                if self.bdclnd:
-                    self.client.cookies.set("BDCLND", self.bdclnd, domain=".baidu.com", path="/")
+                # DTS2026061801237 — 不再设置到 cookie jar，只通过 _share_headers() 的 Cookie 头发送
+                # 避免 httpx 合并 cookie jar 和 headers 导致重复 Cookie
                 logger.info(f"[BDCLND] verify响应: surl={surl}, errno={verify_data.get('errno', '?')}, 新bdclnd={self.bdclnd[:20] if self.bdclnd else '空'}..., Set-Cookie数={len(verify_resp.headers.get_list('set-cookie'))}")
                 
                 if "error" in verify_data:
@@ -749,6 +751,8 @@ class BaiduPanAPI:
         """重置收集统计（在调用 collect_files_recursive 前调用）"""
         self._collect_stats = {"dirs_scanned": 0, "api_requests": 0, "seq": 0, "last_req_time": time.time()}
     
+    # DTS2026061793847 — 流水线模式：BFS逐目录收集→立即转存，解决BDCLND过期
+    # DTS2026061793848 — 按数量分批：攒够100个文件就暂停收集→转存→继续
     def collect_files_batch(self, surl: str, batch_size: int = 100, root_dir: str = "/"):
         """流式收集：BFS 逐目录扫描，每攒够 batch_size 个文件就 yield 一批
         
@@ -1021,6 +1025,10 @@ class BaiduPanAPI:
             # ⚠️ 必须使用 _share_headers() 包含 BDCLND
             headers = self._share_headers()
             logger.info(f"[create_dir] 请求: path={path}, bdstoken={bdstoken[:8]}..., BDCLND={self.bdclnd[:20] if self.bdclnd else '空'}...")
+            # DIAG: create_dir 用 httpx 成功，记录 httpx 实际发送的 Cookie 用于对比
+            create_dir_headers = self._share_headers()
+            logger.info(f"[DIAG-CREATE] httpx _share_headers Cookie: {create_dir_headers.get('Cookie', '无')}")
+            logger.info(f"[DIAG-CREATE] httpx cookie jar keys: {list(dict(self.client.cookies).keys())}")
             resp = self.client.post(url, params=params, data=data, headers=headers)
             result = safe_json_parse(resp)
             
@@ -1035,9 +1043,12 @@ class BaiduPanAPI:
                 return {"error": "请求过于频繁，请等待几分钟后重试", "error_code": -62}
             elif errno == 9019:
                 return {"error": "需要验证（BDCLND缺失）", "error_code": 9019}
+            elif errno == -7:
+                # DTS2026061801238 — 目录已存在，视为成功
+                return {"success": True, "path": path, "existed": True}
             elif errno != 0:
                 error_msg = self._handle_error(errno, result.get("errmsg", ""))
-                return {"error": error_msg}
+                return {"error": error_msg, "errno": errno}
             
             return {"success": True, "path": path}
             
@@ -1054,11 +1065,8 @@ class BaiduPanAPI:
         # 获取 bdstoken（CSRF token，转存 API 必需）
         bdstoken = self._get_bdstoken()
         
-        # 确保目标目录存在
-        dir_result = self.create_dir(target_path)
-        if "error" in dir_result and dir_result.get("error_code") != -7:  # -7 表示目录已存在
-            logger.warning(f"创建目标目录失败: {dir_result}")
-            # 继续尝试转存，可能目录已存在
+        # DTS2026061827298 — 不在此处 create_dir，由调用方（流水线）负责创建目标目录
+        # 此处冗余调用会导致：目录已存在 + ondup=newcopy → 百度创建带时间戳的副本目录
         
         url = self.TRANSFER_URL
         params = {
@@ -1088,12 +1096,43 @@ class BaiduPanAPI:
                 # 全局速率控制
                 _global_limiter.acquire(timeout=60.0)
                 
+                # DTS2026061891301 — 清空 httpx cookie jar 防止截断版 BDUSS_BFESS 与完整 BDUSS 冲突
+                # 百度 Set-Cookie 返回的 BDUSS_BFESS 是截断版，httpx 自动合并到 Cookie 头会导致 errno=-3
+                self.client.cookies.clear()
+                
                 headers = self._share_headers()
                 headers["Content-Type"] = "application/x-www-form-urlencoded"
-                logger.info(f"转存请求: url={url}, filelist类型={type(file_paths).__name__}, filelist长度={len(file_paths)}, filelist示例={file_paths[:2]}, path={target_path}")
-                resp = self.client.post(url, params=params, data=data, headers=headers)
-                result = safe_json_parse(resp)
-                logger.info(f"转存响应: status={resp.status_code}, errno={result.get('errno')}, errmsg={result.get('errmsg', '')}, 完整响应={result}")
+                cookie_in_header = headers.get("Cookie", "")
+                
+                # ===== 发送请求 =====
+                logger.info(f"[transfer] 开始发送: files={len(file_paths)}, attempt={attempt+1}/3")
+                
+                # DTS20260618-fix-errno3 — 修复 errno=-3 根因：
+                # 1. 删除 DIAG-10/DIAG-CURL subprocess curl（3次请求用同一Cookie触发百度安全机制）
+                # 2. 不再创建 _fresh client（其 cookie jar 为空，headers 中的 Cookie 字符串
+                #    在 httpx 内部处理时可能丢失/变形，导致百度收到残缺 Cookie）
+                # 3. 改用 self.client：已有正确的 cookie jar 状态（刚被 clear），
+                #    通过 _share_headers() 传递完整 Cookie 字符串
+                # 4. 同时将关键 cookies 显式设置到 self.client.cookie jar，
+                #    确保 httpx 以标准 Cookie 头格式发送（而非依赖 headers 中的字符串解析）
+                _cookie_str = headers.get("Cookie", "")
+                for _part in _cookie_str.split("; "):
+                    if "=" in _part:
+                        _k, _v = _part.split("=", 1)
+                        self.client.cookies.set(_k.strip(), _v.strip(), domain=".pan.baidu.com")
+                logger.info(f"[transfer] cookie jar 已设置: {list(dict(self.client.cookies).keys())}")
+                
+                # 去掉 headers 中的 Cookie 键（避免与 jar 重复/冲突），由 jar 统一管理
+                _transfer_headers = {k: v for k, v in headers.items() if k.lower() != "cookie"}
+                
+                _resp = self.client.post(url, params=params, data=data, headers=_transfer_headers)
+                result = safe_json_parse(_resp)
+                logger.info(f"[transfer] 响应: status={_resp.status_code}, errno={result.get('errno')}, 完整响应={result}")
+                
+                # [8] 响应 Set-Cookie
+                set_cookies = _resp.headers.get('set-cookie', '')
+                logger.info(f"[DIAG-8] 响应 Set-Cookie: {set_cookies[:500] if set_cookies else '无'}")
+                logger.info(f"[DIAG-8] 响应全部头: {dict(_resp.headers)}")
                 
                 if "error" in result:
                     return {"success": False, "error": result["error"]}
@@ -1186,30 +1225,74 @@ class BaiduPanAPI:
 
 
 class BatchTransferManager:
-    """批量转存管理器"""
+    """批量转存管理器
     
-    def __init__(self, api: BaiduPanAPI, share_id: str, uk: str, files: List[dict], target_path: str, pwd: str = ""):
+    支持两种模式：
+    1. 预构造模式：__init__(api, share_id, uk, files, target_path, pwd) 直接传参
+    2. 延迟解析模式：__init__(api) 创建空实例，再调 prepare_transfer(url, pwd, target) 解析
+    
+    DTS2026061836255 — 重构支持延迟解析模式，修复 4 个崩溃 bug
+    """
+    
+    def __init__(self, api: BaiduPanAPI, share_id: str = "", uk: str = "", 
+                 files: list = None, target_path: str = "", pwd: str = ""):
         self.api = api
         self.share_id = share_id
         self.uk = uk
-        self.files = files
+        self.files = files or []
         self.target_path = target_path
         self.pwd = pwd
         self.task_progress = {
             "status": "ready",
-            "total": len(files),
+            "total": len(self.files),
             "completed": 0,
             "failed": 0,
             "current_batch": 0,
-            "total_batches": (len(files) + 499) // 500,
+            "total_batches": (len(self.files) + 499) // 500 if self.files else 0,
             "start_time": None,
             "elapsed": 0,
             "speed": 0,
             "errors": []
         }
     
-    def execute_transfer(self, batch_size: int = 500, batch_interval: float = 5.0) -> dict:
-        """执行批量转存"""
+    def prepare_transfer(self, url: str, pwd: str, target_path: str) -> dict:
+        """解析分享链接并准备转存参数（延迟解析模式）
+        
+        DTS2026061836255 — 新增方法，调用 get_share_info 解析分享信息
+        """
+        try:
+            result = self.api.get_share_info(url, pwd)
+            if "error" in result:
+                return {"error": result["error"]}
+            
+            self.share_id = result["share_id"]
+            self.uk = result["uk"]
+            self.files = result.get("files", [])
+            self.target_path = target_path
+            self.pwd = pwd
+            
+            # 更新进度
+            self.task_progress["total"] = len(self.files)
+            self.task_progress["total_batches"] = (len(self.files) + 499) // 500 if self.files else 0
+            
+            return {
+                "success": True,
+                "share_id": self.share_id,
+                "uk": self.uk,
+                "total_files": len(self.files),
+                "share_title": result.get("title", ""),
+                "files": self.files
+            }
+        except Exception as e:
+            logger.error(f"prepare_transfer 失败: {e}")
+            return {"error": str(e)}
+    
+    def execute_transfer(self, batch_size: int = 500, batch_interval: float = 5.0,
+                         overwrite_confirmed: bool = False) -> dict:
+        """执行批量转存
+        
+        DTS2026061836255 — 新增 overwrite_confirmed 参数
+        """
         if self.task_progress["status"] != "ready":
             return {"error": "任务未就绪"}
         
@@ -1222,6 +1305,15 @@ class BatchTransferManager:
         errors = []
         
         try:
+            # DTS2026061827298 — 目标目录由调用方创建（transfer_files 不再内部创建）
+            # 先检查是否存在，避免百度创建带时间戳的副本目录
+            if self.api.check_file_exists(self.target_path):
+                logger.info(f"目标目录已存在，跳过创建: {self.target_path}")
+            else:
+                mkdir_result = self.api.create_dir(self.target_path)
+                if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+                    logger.warning(f"创建目标目录失败: {mkdir_result}")
+            
             # 分批处理
             for i in range(0, total_files, batch_size):
                 if self.api._traversal_cancelled:
@@ -1286,12 +1378,23 @@ class BatchTransferManager:
             self.task_progress["status"] = "completed"
             logger.info(f"转存完成: 成功 {completed}, 失败 {failed}")
             
-            return {
+            result = {
                 "success": True,
                 "completed": completed,
                 "failed": failed,
                 "errors": errors
             }
+            
+            # DTS2026061836255 — 文件冲突时返回 need_confirm 让前端提示用户
+            if failed > 0 and not overwrite_confirmed:
+                # 检查是否有文件已存在的错误（errno=12 或包含"已存在"）
+                conflict_errors = [e for e in errors if "已存在" in e or "errno=12" in e.lower()]
+                if conflict_errors:
+                    result["need_confirm"] = True
+                    result["existing_files"] = conflict_errors
+                    self.task_progress["status"] = "waiting_confirm"
+            
+            return result
             
         except Exception as e:
             self.task_progress["status"] = "error"
