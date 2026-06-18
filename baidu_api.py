@@ -295,6 +295,7 @@ class BaiduPanAPI:
     def _get_bdstoken(self) -> str:
         """获取 bdstoken（CSRF token），转存 API 必需"""
         if self._bdstoken_cache:
+            logger.info(f"[bdstoken] 缓存命中: {self._bdstoken_cache[:8]}...")
             return self._bdstoken_cache
         try:
             self._ensure_client()

@@ -181,8 +181,9 @@ def _save_checkpoint(task_id, transferred_fs_ids, last_batch_index, total_files)
                   (json.dumps(checkpoint, ensure_ascii=False), datetime.now().isoformat(), task_id))
         conn.commit()
         conn.close()
+        logger.info(f"[checkpoint] 保存成功: task={task_id}, 已转存={len(transferred_fs_ids)}, 批次={last_batch_index}, 总文件={total_files}")
     except Exception as e:
-        logger.error(f"保存断点到DB失败: {e}")
+        logger.error(f"[checkpoint] 保存到DB失败: {e}")
 
 
 def _clear_checkpoint(task_id):
