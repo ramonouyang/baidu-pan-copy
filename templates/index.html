@@ -963,7 +963,7 @@
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.status')">状态</th>
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.progress')">进度</th>
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.created_at')">创建时间</th>
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">操作</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.action')">操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -987,7 +987,8 @@
                                 <td class="px-4 py-2 text-sm" x-text="new Date(task.created_at).toLocaleString()"></td>
                                 <td class="px-4 py-2 text-sm">
                                     <button @click.stop="showTaskSummary(task.id)" 
-                                            class="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors">
+                                            class="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
+                                            x-text="t('history.view')">
                                         查看
                                     </button>
                                 </td>
@@ -1174,6 +1175,8 @@
                 'history.status': '状态',
                 'history.progress': '进度',
                 'history.created_at': '创建时间',
+                'history.action': '操作',
+                'history.view': '查看',
                 // Status text
                 'status.pending': '待处理',
                 'status.ready': '就绪',
@@ -1401,6 +1404,8 @@
                 'history.status': 'Status',
                 'history.progress': 'Progress',
                 'history.created_at': 'Created At',
+                'history.action': 'Action',
+                'history.view': 'View',
                 // Status text
                 'status.pending': 'Pending',
                 'status.ready': 'Ready',

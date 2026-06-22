@@ -1408,7 +1408,7 @@ async def get_task_progress(task_id: str):
             "logs": task_logs[-50:],  # 最近50条日志
             "has_checkpoint": has_checkpoint,
             # DTS-2026-012: 转存总结数据（完成时返回）
-            "transfer_summary": task.get("transfer_summary") if status == "completed" else None,
+            "transfer_summary": task.get("transfer_summary"),
         }
     
     # 旧模式：从 manager 读取
