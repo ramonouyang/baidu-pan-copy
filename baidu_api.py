@@ -1535,8 +1535,18 @@ class BaiduPanAPI:
                     logger.warning(f"转存被限流(errno={errno})，立即返回，等待用户稍后重试")
                     return {"success": False, "error": "请求过于频繁，请等待几分钟后重试", "errno": errno}
                 
-                # errno=4（请求超时）→ 重试（DTS2026062282633）
+                # errno=4（请求超时）→ 检查是否实际成功（DTS2026062293868）
+                # 百度API有时返回 errno=4 但 duplicated 字段表示文件已转存成功
                 if errno == 4:
+                    duplicated = result.get("duplicated", {})
+                    if duplicated and duplicated.get("total", 0) > 0:
+                        logger.info(f"errno=4 但 duplicated.total={duplicated['total']}，视为转存成功")
+                        return {
+                            "success": True,
+                            "task_id": result.get("task_id", ""),
+                            "extra": result.get("extra", {}),
+                            "duplicated_count": duplicated["total"]
+                        }
                     if attempt < 4:  # 重试5次（0,1,2,3,4）
                         wait_time = 5 * (attempt + 1)  # 递增等待：5s, 10s, 15s, 20s
                         logger.warning(f"转存 errno=4（请求超时），第{attempt+1}次重试，等待{wait_time}秒")

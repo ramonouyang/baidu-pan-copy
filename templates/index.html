@@ -1761,7 +1761,9 @@
                         let text = this.t(log.key);
                         const params = log.params || {};
                         for (const [k, v] of Object.entries(params)) {
-                            text = text.replace('{' + k + '}', v);
+                            // 对 error 参数值也做翻译（后端返回的中文错误消息）
+                            const translated = (k === 'error' && typeof v === 'string') ? this.translateLog(v) : v;
+                            text = text.replace('{' + k + '}', translated);
                         }
                         return text;
                     }
@@ -1822,6 +1824,7 @@
                         [/登录状态失效，请在百度网盘页面重新获取Cookie/, 'Login expired, please re-login on Baidu Pan to get Cookie'],
                         [/任务已取消/, 'Task cancelled'],
                         [/任务未就绪/, 'Task not ready'],
+                        [/解析任务不存在/, 'Parsing task not found'],
                         [/任务不存在/, 'Task not found'],
                         [/任务状态异常，请重新解析/, 'Task status error, please re-parse'],
                         [/无有效文件路径/, 'No valid file path'],
