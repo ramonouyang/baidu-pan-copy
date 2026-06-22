@@ -1778,7 +1778,25 @@
                 
                 // 翻译服务器日志消息（旧格式兼容）
                 translateLog(message) {
-                    if (!message || this.lang !== 'en') return message;
+                    if (!message) return message;
+                    // 中文模式：翻译英文后端异常消息为中文
+                    if (this.lang === 'zh') {
+                        const enToZh = [
+                            [/nodename nor servname provided, or not known/i, '网络DNS解析失败，请检查网络连接'],
+                            [/Name or service not known/i, '网络DNS解析失败，请检查网络连接'],
+                            [/Connection refused/i, '连接被拒绝，请检查网络或代理设置'],
+                            [/Connection reset by peer/i, '连接被重置，请稍后重试'],
+                            [/Network is unreachable/i, '网络不可达，请检查网络连接'],
+                            [/No route to host/i, '无法连接到服务器，请检查网络'],
+                            [/Connection timed out/i, '网络连接超时，请检查网络'],
+                            [/SSL.*certificate/i, 'SSL证书验证失败，请检查网络环境'],
+                        ];
+                        for (const [pattern, replacement] of enToZh) {
+                            if (pattern.test(message)) return replacement;
+                        }
+                        return message; // 无匹配则返回原文
+                    }
+                    if (this.lang !== 'en') return message;
                     
                     // 常见日志模式翻译
                     const patterns = [

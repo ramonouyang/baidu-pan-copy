@@ -1589,7 +1589,21 @@ class BaiduPanAPI:
                 return {"success": False, "error": "请求超时，请检查网络连接", "errno": -100}
             except Exception as e:
                 logger.error(f"转存异常: {e}")
-                return {"success": False, "error": str(e), "errno": -999}
+                # 网络异常友好映射
+                err_str = str(e)
+                if "nodename nor servname" in err_str or "Name or service not known" in err_str or "getaddrinfo failed" in err_str:
+                    friendly = "网络DNS解析失败，请检查网络连接"
+                elif "Connection refused" in err_str or "拒绝连接" in err_str:
+                    friendly = "连接被拒绝，请检查网络或代理设置"
+                elif "Connection reset" in err_str or "连接被重置" in err_str:
+                    friendly = "连接被重置，请稍后重试"
+                elif "timed out" in err_str or "超时" in err_str:
+                    friendly = "网络连接超时，请检查网络"
+                elif "SSL" in err_str or "ssl" in err_str:
+                    friendly = "SSL证书验证失败，请检查网络环境"
+                else:
+                    friendly = f"转存异常: {err_str}"
+                return {"success": False, "error": friendly, "errno": -999}
         
         return {"success": False, "error": "请求过于频繁，多次重试后仍失败", "errno": -62}
     
