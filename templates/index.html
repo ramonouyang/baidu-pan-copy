@@ -1159,7 +1159,7 @@
                 'log.batch_info': '[流水线] 第{batch}批: {total}文件, {skipped}已跳过, {remaining}待转存',
                 'log.batch_rate_limited': '第{batch}批被限流(errno={errno})，保存断点停止',
                 'log.batch_cookie_expired': '第{batch}批失败: Cookie 已失效(errno={errno})，请重新设置 cookie 后重启任务',
-                'log.batch_errno2': '第{batch}批errno=2, 逐个转存',
+                'log.batch_errno2': '第{batch}批: 文件名含非法字符(errno=2)，逐个转存中...',
                 'log.single_file_failed': '  ❌ 单文件失败: {name} (errno={errno})',
                 'log.batch_failed': '第{batch}批失败: {error} (errno={errno})',
                 'log.summary_title': '📊 转存总结:',
@@ -1400,7 +1400,7 @@
                 'log.batch_info': '[Pipeline] Batch {batch}: {total} files, {skipped} skipped, {remaining} pending',
                 'log.batch_rate_limited': 'Batch {batch} rate limited (errno={errno}), checkpoint saved, stopping',
                 'log.batch_cookie_expired': 'Batch {batch} failed: Cookie expired (errno={errno}), re-set cookie and restart',
-                'log.batch_errno2': 'Batch {batch} errno=2, transferring one by one',
+                'log.batch_errno2': 'Batch {batch}: filename contains invalid chars (errno=2), transferring one by one...',
                 'log.batch_failed': 'Batch {batch} failed: {error} (errno={errno})',
                 'log.summary_title': '📊 Transfer Summary:',
                 'log.summary_planned': '  Planned: {count} files',
@@ -1764,6 +1764,10 @@
                             // 对 error 参数值也做翻译（后端返回的中文错误消息）
                             const translated = (k === 'error' && typeof v === 'string') ? this.translateLog(v) : v;
                             text = text.replace('{' + k + '}', translated);
+                        }
+                        // 当有 WARN/ERROR 日志时，自动展开日志区域
+                        if (log.level === 'ERROR' || log.level === 'WARNING') {
+                            this.logsCollapsed = false;
                         }
                         return text;
                     }
