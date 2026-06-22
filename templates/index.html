@@ -967,7 +967,7 @@
                     </thead>
                     <tbody>
                         <template x-for="task in historyTasks" :key="task.id">
-                            <tr class="border-b hover:bg-gray-50">
+                            <tr class="border-b hover:bg-gray-50 cursor-pointer" @click="showTaskSummary(task.id)">
                                 <td class="px-4 py-2 text-sm" x-text="task.id"></td>
                                 <td class="px-4 py-2 text-sm max-w-xs truncate" x-text="task.share_link"></td>
                                 <td class="px-4 py-2 text-sm" x-text="task.target_path"></td>
@@ -1470,6 +1470,11 @@
                 showStats: false,
                 appVersion: '',
                 debugMode: false,
+                
+                // 转存总结弹窗
+                showSummaryModal: false,
+                summaryData: null,
+                summaryLoading: false,
                 
                 // Cookie 相关
                 cookie: localStorage.getItem('baidu_cookie') || '',
@@ -2537,6 +2542,34 @@
                     }
                 },
                 
+                // 显示转存总结
+                async showTaskSummary(taskId) {
+                    this.showSummaryModal = true;
+                    this.summaryLoading = true;
+                    this.summaryData = null;
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${taskId}/summary`);
+                        if (resp.ok) {
+                            this.summaryData = await resp.json();
+                        } else {
+                            console.error('获取总结失败:', resp.status);
+                        }
+                    } catch (e) {
+                        console.error('获取总结异常:', e);
+                    } finally {
+                        this.summaryLoading = false;
+                    }
+                },
+                
+                // 格式化耗时
+                formatElapsed(seconds) {
+                    if (!seconds || seconds < 60) return `${seconds || 0}秒`;
+                    const mins = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${mins}分${secs}秒`;
+                },
+                
                 async toggleDebug() {
                     this.debugMode = !this.debugMode;
                     try {
@@ -2593,6 +2626,57 @@
             };
         }
     </script>
+    
+    <!-- 转存总结弹窗 -->
+    <div x-show="showSummaryModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showSummaryModal = false">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">📊 转存总结</h3>
+                <button @click="showSummaryModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div x-show="summaryLoading" class="text-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="text-gray-500 mt-2">加载中...</p>
+            </div>
+            
+            <div x-show="!summaryLoading && summaryData" class="space-y-3">
+                <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                    <span class="text-gray-600">计划转存</span>
+                    <span class="font-semibold text-blue-600" x-text="summaryData?.total_planned || 0"></span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                    <span class="text-gray-600">成功</span>
+                    <span class="font-semibold text-green-600" x-text="summaryData?.success_count || 0"></span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
+                    <span class="text-gray-600">跳过(已转存)</span>
+                    <span class="font-semibold text-yellow-600" x-text="summaryData?.skipped_count || 0"></span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                    <span class="text-gray-600">失败</span>
+                    <span class="font-semibold text-red-600" x-text="summaryData?.failed_count || 0"></span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600">耗时</span>
+                    <span class="font-semibold text-gray-600" x-text="formatElapsed(summaryData?.elapsed || 0)"></span>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end">
+                <button @click="showSummaryModal = false" 
+                        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
     
     <!-- 新手引导弹窗 -->
     <div x-show="showTour" x-cloak class="tour-overlay" @keydown.escape.window="closeTour()">
