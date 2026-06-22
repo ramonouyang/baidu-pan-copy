@@ -1137,7 +1137,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                 return
                             elif errno == 2:
                                 # 文件名非法 — 逐个转存
-                                add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num)
+                                add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num, error=error)
                                 for f in remaining:
                                     sr = api.transfer_files_with_fallback(share_id, uk, [{"path": f.get("path",""), "fs_id": f.get("fs_id")}], target_subdir, pwd, share_link)
                                     if sr.get("success"):
