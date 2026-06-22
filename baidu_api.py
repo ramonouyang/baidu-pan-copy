@@ -1468,8 +1468,8 @@ class BaiduPanAPI:
             "path": target_path,
         }
         
-        # 限流重试：最多 3 次，指数退避
-        for attempt in range(3):
+        # 限流重试：最多 5 次（对齐 errno=4 重试次数）
+        for attempt in range(5):
             try:
                 # 全局速率控制
                 _global_limiter.acquire(timeout=60.0)
@@ -1572,16 +1572,16 @@ class BaiduPanAPI:
                         "errno": errno
                     }
             except httpx.TimeoutException:
-                if attempt < 2:
+                if attempt < 4:
                     logger.warning(f"转存超时，第{attempt+1}次重试")
-                    time.sleep(3)
+                    time.sleep(5 * (attempt + 1))
                     continue
-                return {"success": False, "error": "请求超时，请检查网络连接"}
+                return {"success": False, "error": "请求超时，请检查网络连接", "errno": -100}
             except Exception as e:
                 logger.error(f"转存异常: {e}")
-                return {"success": False, "error": str(e)}
+                return {"success": False, "error": str(e), "errno": -999}
         
-        return {"success": False, "error": "请求过于频繁，多次重试后仍失败"}
+        return {"success": False, "error": "请求过于频繁，多次重试后仍失败", "errno": -62}
     
     def transfer_files_with_fallback(self, share_id: str, uk: str, file_list: List[dict], target_path: str, pwd: str = "", share_link: str = "") -> dict:
         """转存文件（自动 fallback：fs_id → path）
