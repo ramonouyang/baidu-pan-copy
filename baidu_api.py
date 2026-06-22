@@ -1519,7 +1519,7 @@ class BaiduPanAPI:
                     data=data,
                     headers=headers,
                     follow_redirects=True,
-                    timeout=30.0
+                    timeout=60.0  # DTS2026062282633: 增加超时时间，百度转存接口响应慢
                 )
                 result = safe_json_parse(_resp)
                 logger.debug("[transfer] 响应: status=%d, errno=%s, 完整响应=%s", _resp.status_code, result.get('errno'), result)
@@ -1537,11 +1537,12 @@ class BaiduPanAPI:
                 
                 # errno=4（请求超时）→ 重试（DTS2026062282633）
                 if errno == 4:
-                    if attempt < 2:
-                        logger.warning(f"转存 errno=4（请求超时），第{attempt+1}次重试")
-                        time.sleep(5)
+                    if attempt < 4:  # 重试5次（0,1,2,3,4）
+                        wait_time = 5 * (attempt + 1)  # 递增等待：5s, 10s, 15s, 20s
+                        logger.warning(f"转存 errno=4（请求超时），第{attempt+1}次重试，等待{wait_time}秒")
+                        time.sleep(wait_time)
                         continue
-                    logger.warning(f"转存 errno=4 重试3次仍失败")
+                    logger.warning(f"转存 errno=4 重试5次仍失败")
                     return {"success": False, "error": "请求超时，请稍后再试", "errno": errno}
                 
                 # errno=-3（用户未登录）— 不重试，直接返回
