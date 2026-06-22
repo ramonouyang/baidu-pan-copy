@@ -1,5 +1,7 @@
 """FastAPI 主应用 - 增强版"""
+__version__ = "1.1.6"  # DTS-2026-008~015: 性能优化+Debug开关+转存总结+视觉优化
 import json
+import time
 import sqlite3
 import uuid
 import threading
@@ -20,6 +22,21 @@ logger = logging.getLogger('baidu-pan-tool')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 app = FastAPI(title="百度网盘批量转存工具")
+
+@app.get("/api/version")
+async def get_version():
+    """返回当前版本号"""
+    return {"version": __version__}
+
+# DTS-2026-011: Debug 模式控制
+@app.post("/api/debug")
+async def toggle_debug(request: Request):
+    """切换 debug 日志模式"""
+    from baidu_api import set_debug_mode
+    body = await request.json()
+    enabled = body.get("enabled", False)
+    set_debug_mode(enabled)
+    return {"debug": enabled, "message": f"Debug 模式已{'开启' if enabled else '关闭'}"}
 
 # 全局异常处理 — 确保所有响应都是 JSON（避免前端解析 HTML 崩溃）
 @app.exception_handler(Exception)
@@ -108,19 +125,20 @@ migrate_db()
 
 
 # DTS2026061748508 — 执行日志功能：同时写入内存缓冲 + DB
-def add_task_log(task_id, msg, level="INFO"):
-    """向任务的内存日志缓冲和DB追加一条日志
+def add_task_log(task_id, msg, level="INFO", **kwargs):
+    """向任务的内存日志缓冲和DB追加一条日志（支持 i18n）
     
     Args:
         task_id: 任务ID
-        msg: 日志消息
+        msg: i18n key（如 "log.started"）或纯文本消息（向后兼容）
         level: 日志级别 (INFO/WARNING/ERROR/SUCCESS)
+        **kwargs: i18n 参数（如 surl="xxx", batch_num=3）
     """
     timestamp = datetime.now().strftime("%H:%M:%S")
-    # 内存中存结构化对象（前端用）
-    log_entry = {"time": timestamp, "level": level, "message": msg}
+    # 内存中存结构化对象（前端用）— 携带 i18n key + params
+    log_entry = {"time": timestamp, "level": level, "key": msg, "params": kwargs}
     # DB 中存纯文本（导出用）
-    log_text = f"[{timestamp}] [{level}] {msg}"
+    log_text = f"[{timestamp}] [{level}] {msg}" + (f" {kwargs}" if kwargs else "")
     
     # 写入内存缓冲
     if task_id in active_tasks:
@@ -574,36 +592,153 @@ async def transfer_selected(task_id: str, request: Request):
     uk = share_info.get("uk", "")
     
     logger.info(f"开始转存: {len(unique_files)} 个文件 (来自 {len(direct_files)} 个直接文件 + {len(dir_paths)} 个目录展开, {total_api_requests} 次API请求)")
+    start_time = time.time()
     
-    # DTS2026061827298 — 目标目录由调用方创建（transfer_files 不再内部创建）
-    # 先检查是否存在，避免百度创建带时间戳的副本目录
-    if api.check_file_exists(target_path):
-        logger.info(f"目标目录已存在，跳过创建: {target_path}")
+    # ===== DTS2026062282633: 保留目录结构 =====
+    # 分析选中的目录，找出公共前缀，按相对目录分组
+    # dir_paths = 用户选中的目录列表（如 ["/labubu合集/拉布布", "/labubu合集/泡泡玛特"]）
+    
+    pwd = task.get("pwd", "")
+    share_link = task.get("share_link", "")
+    
+    if dir_paths:
+        # 找公共前缀：所有选中目录的最长公共路径前缀
+        dir_parts_list = [d.strip("/").split("/") for d in dir_paths if d]
+        if dir_parts_list:
+            min_len = min(len(parts) for parts in dir_parts_list)
+            common_prefix_parts = []
+            for i in range(min_len):
+                part = dir_parts_list[0][i]
+                if all(parts[i] == part for parts in dir_parts_list):
+                    common_prefix_parts.append(part)
+                else:
+                    break
+            common_prefix = "/" + "/".join(common_prefix_parts) if common_prefix_parts else "/"
+        else:
+            common_prefix = "/"
+        
+        logger.info(f"[保留目录结构] 选中 {len(dir_paths)} 个目录, 公共前缀: {common_prefix}")
+        
+        # 按相对目录分组文件
+        dir_groups = {}  # {relative_dir: [file_objects]}
+        for f in unique_files:
+            file_path = f.get("path", "")
+            if not file_path:
+                dir_groups.setdefault("/", []).append(f)
+                continue
+            
+            parent_dir = "/".join(file_path.split("/")[:-1]) or "/"
+            
+            # 计算相对目录
+            if common_prefix == "/":
+                relative_dir = parent_dir
+            elif parent_dir == common_prefix:
+                relative_dir = "/"
+            elif parent_dir.startswith(common_prefix + "/"):
+                relative_dir = parent_dir[len(common_prefix):]
+            else:
+                # 文件不在公共前缀下（可能来自直接选中的文件）
+                relative_dir = parent_dir
+            
+            dir_groups.setdefault(relative_dir, []).append(f)
+        
+        logger.info(f"[保留目录结构] 分组完成: {len(dir_groups)} 个目录")
+        for rel_dir, files in dir_groups.items():
+            logger.info(f"  {rel_dir}: {len(files)} 个文件")
+        
+        # 按目录分批转存
+        total_transferred = 0
+        failed_groups = []
+        
+        for relative_dir, files in dir_groups.items():
+            # 构建目标子目录
+            if relative_dir == "/":
+                target_subdir = target_path
+            else:
+                rel_path = relative_dir.lstrip("/")
+                target_subdir = f"{target_path}/{rel_path}"
+            
+            # 创建目标子目录
+            if api.check_file_exists(target_subdir):
+                logger.info(f"目标子目录已存在: {target_subdir}")
+            else:
+                mkdir_result = api.create_dir(target_subdir)
+                if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+                    logger.warning(f"创建目标子目录失败: {target_subdir} → {mkdir_result}")
+                    failed_groups.append({"dir": relative_dir, "error": mkdir_result.get("error", "创建目录失败")})
+                    continue
+            
+            # 转存该目录下的文件
+            logger.info(f"转存 {len(files)} 个文件到 {target_subdir}")
+            result = api.transfer_files_with_fallback(share_id, uk, files, target_subdir, pwd, share_link)
+            
+            if result.get("success"):
+                total_transferred += len(files)
+                logger.info(f"✅ {relative_dir}: 成功转存 {len(files)} 个文件")
+            else:
+                error_code = result.get("errno", 0)
+                logger.warning(f"❌ {relative_dir}: 转存失败 - {result.get('error', '未知错误')}")
+                failed_groups.append({"dir": relative_dir, "error": result.get("error", "转存失败"), "errno": error_code})
+        
+        # 汇总结果
+        total_files = len(unique_files)
+        elapsed = round(time.time() - start_time, 1)
+        failed_count = sum(len(g.get("files", [{}])) for g in failed_groups) if failed_groups else 0
+        # failed_groups 里存的是目录级别错误，每个失败目录 = 该目录下所有文件失败
+        # 但目前我们没有精确统计每个失败目录的文件数，用总数减去成功数更准确
+        failed_count = total_files - total_transferred
+        
+        if total_transferred > 0:
+            msg = f"📊 转存总结: 计划{total_files}个, 成功{total_transferred}个"
+            if failed_count > 0:
+                msg += f", 失败{failed_count}个"
+            msg += f"（保留{len(dir_groups)}个目录结构）"
+            return {
+                "success": True,
+                "message": msg,
+                "count": total_transferred,
+                "total_planned": total_files,
+                "success_count": total_transferred,
+                "failed_count": failed_count,
+                "dirs_preserved": len(dir_groups),
+                "failed_groups": failed_groups,
+                "api_requests": total_api_requests,
+                "elapsed": elapsed
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"所有目录转存失败: {[g['error'] for g in failed_groups]}")
+    
     else:
-        mkdir_result = api.create_dir(target_path)
-        if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
-            logger.warning(f"创建目标目录失败: {mkdir_result}")
-    
-    # 使用 transfer_files_with_fallback（fs_id → path 自动降级）
-    result = api.transfer_files_with_fallback(share_id, uk, unique_files, target_path)
-    
-    if result.get("success"):
-        msg = f"成功转存 {len(unique_files)} 个文件"
-        if dir_paths:
-            msg += f"（展开 {len(dir_paths)} 个目录）"
-        return {
-            "success": True,
-            "message": msg,
-            "task_id": result.get("task_id"),
-            "count": len(unique_files),
-            "dirs_expanded": len(dir_paths),
-            "api_requests": total_api_requests
-        }
-    else:
-        error_code = result.get("errno", 0)
-        if error_code in (-62, -9):
-            return JSONResponse(status_code=429, content={"detail": result.get("error", "请求过于频繁")})
-        raise HTTPException(status_code=400, detail=result.get("error", "转存失败"))
+        # 没有选中目录（只有直接选中的文件），按原来逻辑转存到 target_path
+        if api.check_file_exists(target_path):
+            logger.info(f"目标目录已存在，跳过创建: {target_path}")
+        else:
+            mkdir_result = api.create_dir(target_path)
+            if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+                logger.warning(f"创建目标目录失败: {mkdir_result}")
+        
+        result = api.transfer_files_with_fallback(share_id, uk, unique_files, target_path, pwd, share_link)
+        elapsed = round(time.time() - start_time, 1)
+        
+        if result.get("success"):
+            total_files = len(unique_files)
+            return {
+                "success": True,
+                "message": f"成功转存 {total_files} 个文件",
+                "count": total_files,
+                "total_planned": total_files,
+                "success_count": total_files,
+                "failed_count": 0,
+                "dirs_preserved": 0,
+                "failed_groups": [],
+                "api_requests": total_api_requests,
+                "elapsed": elapsed
+            }
+        else:
+            error_code = result.get("errno", 0)
+            if error_code in (-62, -9):
+                return JSONResponse(status_code=429, content={"detail": result.get("error", "请求过于频繁")})
+            raise HTTPException(status_code=400, detail=result.get("error", "转存失败"))
 
 
 @app.post("/api/batch/parse")
@@ -826,8 +961,12 @@ async def start_task(task_id: str, req: ConfirmRequest):
         
         def run_lazy_transfer():
             try:
+                # DTS2026062143821: 获取提取码和分享链接，传递给转存函数
+                pwd = task.get("pwd", "")
+                share_link = task.get("share_link", "")
+                
                 # ===== 阶段1：创建目标目录 =====
-                add_task_log(task_id, f"开始流水线转存，surl={surl}")
+                add_task_log(task_id, "log.started", surl=surl)
                 logger.info(f"流水线转存：开始, surl={surl}, target={target_path}, batch_size={BATCH_SIZE}")
                 
                 # 确保目标目录存在（DTS2026061827298 — 先检查是否存在，避免百度创建带时间戳的副本目录）
@@ -835,12 +974,12 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 task["progress"]["current_action"] = "正在创建目标目录..."
                 if api.check_file_exists(target_path):
                     logger.info(f"目标目录已存在，跳过创建: {target_path}")
-                    add_task_log(task_id, f"目标目录已存在: {target_path}")
+                    add_task_log(task_id, "log.dir_exists", path=target_path)
                 else:
                     mkdir_result = api.create_dir(target_path)
                     if not mkdir_result.get("success") and "error" in mkdir_result:
                         logger.warning(f"创建目标目录: {mkdir_result.get('error', '')}")
-                    add_task_log(task_id, f"目标目录: {target_path}")
+                    add_task_log(task_id, "log.target_dir", path=target_path)
                 
                 # ===== 阶段2：加载断点 =====
                 checkpoint = task.get("checkpoint", {})
@@ -869,23 +1008,23 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 dirs_scanned = 0
                 
                 if completed_count > 0:
-                    add_task_log(task_id, f"断点续传：已有 {completed_count} 个文件已转存")
+                    add_task_log(task_id, "log.checkpoint", count=completed_count)
                 
                 # ===== 阶段2.5：验证 cookie 有效性 =====
                 # DTS2026061801239 — 启动前验证 cookie，避免流水线启动后才报错
-                add_task_log(task_id, "验证 cookie 有效性...")
+                add_task_log(task_id, "log.validating_cookie")
                 cookie_check = api.validate_cookie()
                 if not cookie_check.get("valid"):
                     error_msg = cookie_check.get("error", "未知原因")
-                    add_task_log(task_id, f"Cookie 已失效: {error_msg}，请重新设置 cookie 后重试", "ERROR")
+                    add_task_log(task_id, "log.cookie_expired", "ERROR", error=error_msg)
                     task["status"] = "error"
                     task["error"] = f"Cookie 已失效: {error_msg}，请重新设置 cookie"
                     _update_task_db(task_id, "error", 0, 0, 0, error=task["error"])
                     return
-                add_task_log(task_id, f"Cookie 有效，用户: {cookie_check.get('username', '未知')}")
+                add_task_log(task_id, "log.cookie_valid", user=cookie_check.get('username', 'unknown'))
 
                 # ===== 阶段3：流水线 — 收集一批 → 转存一批 =====
-                add_task_log(task_id, f"开始流水线：每收集 {BATCH_SIZE} 个文件立即转存")
+                add_task_log(task_id, "log.pipeline_start", batch_size=BATCH_SIZE)
                 
                 for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
                     # DTS2026061801241 — 暂停检查：等待直到用户继续
@@ -901,7 +1040,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     
                     # 错误处理
                     if error:
-                        add_task_log(task_id, f"收集失败(第{batch_num}批): {error}", "ERROR")
+                        add_task_log(task_id, "log.collect_failed", "ERROR", batch=batch_num, error=error)
                         task["status"] = "error"
                         task["error"] = f"收集失败: {error}"
                         _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
@@ -930,56 +1069,92 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         continue
                     
                     # ===== 转存这批文件 =====
-                    add_task_log(task_id, f"[流水线] 第{batch_num}批: {len(files)}文件, {skipped}已跳过, {len(remaining)}待转存")
+                    add_task_log(task_id, "log.batch_info", batch=batch_num, total=len(files), skipped=skipped, remaining=len(remaining))
                     
                     transfer_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")} for f in remaining]
-                    transfer_result = api.transfer_files_with_fallback(share_id, uk, transfer_items, target_path)
                     
-                    if transfer_result.get("success"):
-                        completed_count += len(remaining)
-                        for f in remaining:
-                            fs_id = f.get("fs_id")
-                            if fs_id:
-                                transferred_fs_ids.add(fs_id)
-                        logger.info(f"[流水线] 第{batch_num}批: 转存成功 {len(remaining)} 文件")
-                    else:
-                        error = transfer_result.get("error", "未知错误")
-                        errno = transfer_result.get("errno", 0)
-                        
-                        if errno in (-62, -9):
-                            add_task_log(task_id, f"第{batch_num}批被限流(errno={errno})，保存断点停止", "ERROR")
-                            failed_count += len(remaining)
-                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
-                            task["status"] = "error"
-                            task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}），请稍后重新启动"
-                            _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
-                            return
-                        elif errno in (-3, -4):
-                            # DTS2026061801240 — Cookie 过期 — 立即停止，保存断点
-                            add_task_log(task_id, f"第{batch_num}批失败: Cookie 已失效(errno={errno})，请重新设置 cookie 后重启任务", "ERROR")
-                            failed_count += len(remaining)
-                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
-                            task["status"] = "error"
-                            task["error"] = f"Cookie 已失效，已保存断点（已完成 {completed_count}/{files_found}），请重新设置 cookie 后重启"
-                            _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
-                            return
-                        elif errno == 2:
-                            # 文件名非法 — 逐个转存
-                            add_task_log(task_id, f"第{batch_num}批errno=2, 逐个转存", "WARN")
-                            for f in remaining:
-                                sr = api.transfer_files_with_fallback(share_id, uk, [{"path": f.get("path",""), "fs_id": f.get("fs_id")}], target_path)
-                                if sr.get("success"):
-                                    completed_count += 1
-                                    fs_id = f.get("fs_id")
-                                    if fs_id:
-                                        transferred_fs_ids.add(fs_id)
-                                else:
-                                    failed_count += 1
-                                    fname = f.get("path","").split("/")[-1]
-                                    logger.warning(f"[流水线] 单文件失败: {fname} errno={sr.get('errno','?')}")
+                    # ===== DTS2026062282633: 保留目录结构 =====
+                    # 按文件的父目录分组，为每个子目录创建对应的目标路径
+                    dir_groups = {}
+                    for item in transfer_items:
+                        file_path = item.get("path", "")
+                        if file_path:
+                            parent_dir = "/".join(file_path.split("/")[:-1]) or "/"
                         else:
-                            failed_count += len(remaining)
-                            add_task_log(task_id, f"第{batch_num}批失败: {error} (errno={errno})", "ERROR")
+                            parent_dir = "/"
+                        # 计算相对于分享根目录的路径
+                        # 分享根目录通常是 "/" 或用户选中的目录
+                        # 这里直接用 parent_dir 作为相对路径
+                        dir_groups.setdefault(parent_dir, []).append(item)
+                    
+                    batch_success = 0
+                    batch_failed = 0
+                    
+                    for parent_dir, group_items in dir_groups.items():
+                        # 构建目标子目录
+                        if parent_dir == "/":
+                            target_subdir = target_path
+                        else:
+                            # 去掉开头的 "/"，拼接到 target_path
+                            rel_path = parent_dir.lstrip("/")
+                            target_subdir = f"{target_path}/{rel_path}"
+                        
+                        # 创建目标子目录（如果不存在）
+                        if not api.check_file_exists(target_subdir):
+                            mkdir_result = api.create_dir(target_subdir)
+                            if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+                                logger.warning(f"创建目标子目录失败: {target_subdir} → {mkdir_result}")
+                        
+                        transfer_result = api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link)
+                        
+                        if transfer_result.get("success"):
+                            batch_success += len(group_items)
+                            for f in remaining:
+                                fs_id = f.get("fs_id")
+                                if fs_id:
+                                    transferred_fs_ids.add(fs_id)
+                        else:
+                            error = transfer_result.get("error", "未知错误")
+                            errno = transfer_result.get("errno", 0)
+                            batch_failed += len(group_items)
+                            
+                            if errno in (-62, -9):
+                                add_task_log(task_id, "log.batch_rate_limited", "ERROR", batch=batch_num, errno=errno)
+                                _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                                task["status"] = "error"
+                                task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}），请稍后重新启动"
+                                _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
+                                return
+                            elif errno in (-3, -4):
+                                add_task_log(task_id, "log.batch_cookie_expired", "ERROR", batch=batch_num, errno=errno)
+                                _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                                task["status"] = "error"
+                                task["error"] = f"Cookie 已失效，已保存断点（已完成 {completed_count}/{files_found}），请重新设置 cookie 后重启"
+                                _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
+                                return
+                            elif errno == 2:
+                                # 文件名非法 — 逐个转存
+                                add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num)
+                                for f in remaining:
+                                    sr = api.transfer_files_with_fallback(share_id, uk, [{"path": f.get("path",""), "fs_id": f.get("fs_id")}], target_subdir, pwd, share_link)
+                                    if sr.get("success"):
+                                        completed_count += 1
+                                        fs_id = f.get("fs_id")
+                                        if fs_id:
+                                            transferred_fs_ids.add(fs_id)
+                                    else:
+                                        failed_count += 1
+                                        fname = f.get("path","").split("/")[-1]
+                                        logger.warning(f"[流水线] 单文件失败: {fname} errno={sr.get('errno','?')}")
+                                        add_task_log(task_id, "log.single_file_failed", "WARN", name=fname, errno=sr.get('errno', '?'))
+                            else:
+                                add_task_log(task_id, "log.batch_failed", "ERROR", batch=batch_num, error=error, errno=errno)
+                    
+                    completed_count += batch_success
+                    failed_count += batch_failed
+                    
+                    if batch_success > 0:
+                        logger.info(f"[流水线] 第{batch_num}批: 转存成功 {batch_success} 文件 (保留目录结构)")
                     
                     # 每批转存完保存断点
                     _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
@@ -1006,13 +1181,35 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     "api_requests": api._collect_stats.get("api_requests", 0),
                 }
                 
-                add_task_log(task_id, f"流水线转存完成: 成功 {completed_count}, 失败 {failed_count}, 耗时 {int(total_elapsed)}s")
+                # ===== DTS2026062282633 + DTS-2026-012: 详细总结 + 结构化数据 =====
+                total_planned = completed_count + failed_count
+                skipped_count = len(transferred_fs_ids) - completed_count  # 断点续传跳过的
+                add_task_log(task_id, "log.summary_title")
+                add_task_log(task_id, "log.summary_planned", count=files_found)
+                add_task_log(task_id, "log.summary_success", count=completed_count)
+                if skipped_count > 0:
+                    add_task_log(task_id, "log.summary_skipped", count=skipped_count)
+                add_task_log(task_id, "log.summary_failed", count=failed_count)
+                add_task_log(task_id, "log.summary_elapsed", seconds=int(total_elapsed))
+                
+                # DTS-2026-012: 存储结构化总结数据，供前端弹窗使用
+                task["transfer_summary"] = {
+                    "total_planned": files_found,
+                    "success_count": completed_count,
+                    "failed_count": failed_count,
+                    "skipped_count": skipped_count,
+                    "elapsed": int(total_elapsed),
+                    "dirs_scanned": dirs_scanned,
+                    "api_requests": api._collect_stats.get("api_requests", 0),
+                    "failed_files": task["progress"].get("failed_files", []),
+                }
+                
                 _update_task_db(task_id, "completed", completed_count, failed_count, completed_count + failed_count)
                 _clear_checkpoint(task_id)
                     
             except Exception as e:
                 logger.error(f"流水线转存异常: {e}")
-                add_task_log(task_id, f"转存异常: {e}", "ERROR")
+                add_task_log(task_id, "log.transfer_error", "ERROR", error=str(e))
                 task["status"] = "error"
                 task["error"] = str(e)
                 _update_task_db(task_id, "error", 
@@ -1105,7 +1302,7 @@ async def pause_task(task_id: str):
         manager.pause()
     
     task["status"] = "paused"
-    add_task_log(task_id, "任务已暂停", "INFO")
+    add_task_log(task_id, "log.paused", "INFO")
     return {"message": "任务已暂停", "task_id": task_id}
 
 
@@ -1125,7 +1322,7 @@ async def resume_task(task_id: str):
         manager.resume()
     
     task["status"] = "running"
-    add_task_log(task_id, "任务已继续", "INFO")
+    add_task_log(task_id, "log.resumed", "INFO")
     return {"message": "任务已恢复", "task_id": task_id}
 
 
@@ -1210,6 +1407,8 @@ async def get_task_progress(task_id: str):
             "confirm_data": task.get("confirm_data"),
             "logs": task_logs[-50:],  # 最近50条日志
             "has_checkpoint": has_checkpoint,
+            # DTS-2026-012: 转存总结数据（完成时返回）
+            "transfer_summary": task.get("transfer_summary") if status == "completed" else None,
         }
     
     # 旧模式：从 manager 读取
@@ -1254,17 +1453,31 @@ async def list_tasks():
     
     tasks = []
     for row in rows:
+        # DTS-2026-013: 计算耗时（completed/error 状态时）
+        elapsed = 0
+        status = row[3]
+        created_at = row[7]
+        updated_at = row[8] if len(row) > 8 else None
+        if status in ("completed", "error") and created_at and updated_at:
+            try:
+                start = datetime.fromisoformat(created_at)
+                end = datetime.fromisoformat(updated_at)
+                elapsed = int((end - start).total_seconds())
+            except:
+                pass
+        
         tasks.append({
             "id": row[0],
             "share_link": row[1],
             "target_path": row[2],
-            "status": row[3],
+            "status": status,
             "total_files": row[4],
             "completed_files": row[5],
             "failed_files": row[6],
-            "created_at": row[7],
+            "created_at": created_at,
             "error_message": row[10],
-            "batch_id": row[11]
+            "batch_id": row[11],
+            "elapsed": elapsed,  # DTS-2026-013: 耗时（秒）
         })
     
     return tasks
@@ -1319,6 +1532,56 @@ async def get_limiter_stats():
         "burst": _global_limiter.burst
     }
     return stats
+
+
+# DTS-2026-014: 获取任务转存总结
+@app.get("/api/task/{task_id}/summary")
+async def get_task_summary(task_id: str):
+    """获取任务转存总结（优先从内存，否则从DB计算）"""
+    # 先从活跃任务获取
+    if task_id in active_tasks:
+        task = active_tasks[task_id]
+        summary = task.get("transfer_summary")
+        if summary:
+            return summary
+    
+    # 从 DB 获取基本信息
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+    row = c.fetchone()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    # 从 DB 字段构造总结
+    status = row[3]
+    total_files = row[4] or 0
+    completed_files = row[5] or 0
+    failed_files = row[6] or 0
+    created_at = row[7]
+    updated_at = row[8] if len(row) > 8 else None
+    
+    elapsed = 0
+    if status in ("completed", "error") and created_at and updated_at:
+        try:
+            start = datetime.fromisoformat(created_at)
+            end = datetime.fromisoformat(updated_at)
+            elapsed = int((end - start).total_seconds())
+        except:
+            pass
+    
+    return {
+        "total_planned": total_files,
+        "success_count": completed_files,
+        "failed_count": failed_files,
+        "skipped_count": 0,
+        "elapsed": elapsed,
+        "dirs_scanned": 0,
+        "api_requests": 0,
+        "failed_files": [],
+    }
 
 
 @app.get("/api/task/{task_id}/export")

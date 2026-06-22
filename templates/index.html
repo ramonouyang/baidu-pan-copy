@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html :lang="lang === 'zh' ? 'zh-CN' : 'en'">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,53 +16,109 @@
         .log-container { max-height: 300px; overflow-y: auto; }
         .progress-bar { transition: width 0.3s ease; }
         
-        /* 深色模式 */
-        .dark body { background-color: #1a1a2e; color: #e2e8f0; }
-        .dark .bg-white { background-color: #16213e; }
-        .dark .bg-gray-100 { background-color: #0f0f23; }
-        .dark .bg-gray-50 { background-color: #1a1a2e; }
-        .dark .bg-gray-200 { background-color: #1e293b; }
-        .dark .bg-gray-300 { background-color: #334155; }
-        .dark .bg-gray-400 { background-color: #475569; }
-        .dark .text-gray-800 { color: #e2e8f0; }
-        .dark .text-gray-700 { color: #cbd5e1; }
-        .dark .text-gray-600 { color: #94a3b8; }
-        .dark .text-gray-500 { color: #94a3b8; }
-        .dark .text-gray-400 { color: #64748b; }
-        .dark .text-gray-300 { color: #475569; }
-        .dark .text-gray-200 { color: #334155; }
-        .dark .text-gray-100 { color: #1e293b; }
+        /* ===== DTS-2026-015: 优化深色模式（参考 Linear/Raycast） ===== */
+        .dark body { 
+            background-color: #0a0a0f;
+            color: #e4e4e7; 
+        }
+        .dark .bg-white { 
+            background-color: rgba(24, 24, 32, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(12px);
+        }
+        .dark .bg-gray-100 { background-color: #0f0f14; }
+        .dark .bg-gray-50 { background-color: rgba(255, 255, 255, 0.03); }
+        .dark .bg-gray-200 { background-color: rgba(255, 255, 255, 0.06); }
+        .dark .bg-gray-300 { background-color: rgba(255, 255, 255, 0.1); }
+        .dark .bg-gray-400 { background-color: rgba(255, 255, 255, 0.15); }
+        .dark .text-gray-800 { color: #fafafa; }
+        .dark .text-gray-700 { color: #d4d4d8; }
+        .dark .text-gray-600 { color: #a1a1aa; }
+        .dark .text-gray-500 { color: #71717a; }
+        .dark .text-gray-400 { color: #52525b; }
+        .dark .text-gray-300 { color: #3f3f46; }
+        .dark .text-gray-200 { color: #27272a; }
+        .dark .text-gray-100 { color: #18181b; }
         .dark .text-blue-800 { color: #93c5fd; }
         .dark .text-red-800 { color: #fca5a5; }
         .dark .text-yellow-800 { color: #fde68a; }
         .dark .text-purple-800 { color: #c4b5fd; }
         .dark .text-green-800 { color: #86efac; }
-        .dark .bg-blue-50 { background-color: #1e3a5f; }
-        .dark .bg-green-50 { background-color: #14532d; }
-        .dark .bg-red-50 { background-color: #7f1d1d; }
-        .dark .bg-yellow-100 { background-color: #713f12; }
-        .dark .bg-purple-50 { background-color: #3b0764; }
-        .dark .bg-orange-50 { background-color: #7c2d12; }
-        .dark .bg-red-100 { background-color: #7f1d1d; }
-        .dark .bg-green-100 { background-color: #14532d; }
-        .dark .border-gray-300 { border-color: #334155; }
-        .dark .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
-        .dark input, .dark textarea { background-color: #1e293b; color: #e2e8f0; border-color: #334155; }
-        .dark input:focus, .dark textarea:focus { ring-color: #3b82f6; }
-        .dark .hover\:bg-gray-200:hover { background-color: #334155; }
-        .dark .hover\:bg-gray-300:hover { background-color: #475569; }
-        .dark .hover\\:bg-gray-400:hover { background-color: #64748b; }
-        .dark .hover\\:text-gray-700:hover { color: #cbd5e1; }
-        .dark .dark\\:bg-gray-700 { background-color: #374151; }
-        .dark .dark\\:hover\\:bg-gray-600:hover { background-color: #4b5563; }
-        .dark .dark\\:bg-blue-900 { background-color: #1e3a5f; }
-        .dark .dark\\:bg-green-900 { background-color: #14532d; }
-        .dark .dark\\:bg-orange-900 { background-color: #7c2d12; }
-        .dark .dark\\:bg-purple-900 { background-color: #3b0764; }
-        .dark .dark\\:text-blue-300 { color: #93c5fd; }
-        .dark .dark\\:text-green-300 { color: #86efac; }
-        .dark .dark\\:text-orange-300 { color: #fdba74; }
-        .dark .dark\\:text-purple-300 { color: #c4b5fd; }
+        .dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1); }
+        .dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.1); }
+        .dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.1); }
+        .dark .bg-yellow-100 { background-color: rgba(245, 158, 11, 0.1); }
+        .dark .bg-purple-50 { background-color: rgba(139, 92, 246, 0.1); }
+        .dark .bg-orange-50 { background-color: rgba(249, 115, 22, 0.1); }
+        .dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.15); }
+        .dark .bg-green-100 { background-color: rgba(34, 197, 94, 0.15); }
+        .dark .border-gray-300 { border-color: rgba(255, 255, 255, 0.06); }
+        .dark .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4); }
+        .dark input, .dark textarea { 
+            background-color: rgba(24, 24, 32, 0.8); 
+            color: #e4e4e7; 
+            border-color: rgba(255, 255, 255, 0.08); 
+        }
+        .dark input:focus, .dark textarea:focus { 
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .dark .hover\\:bg-gray-200:hover { background-color: rgba(255, 255, 255, 0.08); }
+        .dark .hover\\:bg-gray-300:hover { background-color: rgba(255, 255, 255, 0.12); }
+        .dark .hover\\\\:bg-gray-400:hover { background-color: rgba(255, 255, 255, 0.18); }
+        .dark .hover\\\\:text-gray-700:hover { color: #d4d4d8; }
+        .dark .dark\\\\:bg-gray-700 { background-color: rgba(255, 255, 255, 0.08); }
+        .dark .dark\\\\:hover\\\\:bg-gray-600:hover { background-color: rgba(255, 255, 255, 0.12); }
+        .dark .dark\\\\:bg-blue-900 { background-color: rgba(59, 130, 246, 0.15); }
+        .dark .dark\\\\:bg-green-900 { background-color: rgba(34, 197, 94, 0.15); }
+        .dark .dark\\\\:bg-orange-900 { background-color: rgba(249, 115, 22, 0.15); }
+        .dark .dark\\\\:bg-purple-900 { background-color: rgba(139, 92, 246, 0.15); }
+        .dark .dark\\\\:text-blue-300 { color: #93c5fd; }
+        .dark .dark\\\\:text-green-300 { color: #86efac; }
+        .dark .dark\\\\:text-orange-300 { color: #fdba74; }
+        .dark .dark\\\\:text-purple-300 { color: #c4b5fd; }
+        
+        /* 胶囊型推拉开关 */
+        .capsule-switch {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            background: #e5e7eb;
+            border-radius: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .capsule-switch.active {
+            background: #10b981;
+        }
+        .capsule-switch::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+        .capsule-switch.active::after {
+            transform: translateX(22px);
+        }
+        .dark .capsule-switch {
+            background: #374151;
+        }
+        .dark .capsule-switch.active {
+            background: #10b981;
+        }
+        
+        /* DTS-2026-015: 深色模式自定义滚动条 */
+        .dark ::-webkit-scrollbar { width: 6px; height: 6px; }
+        .dark ::-webkit-scrollbar-track { background: transparent; }
+        .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
         
         /* 引导遮罩 */
         .tour-overlay {
@@ -109,15 +165,35 @@
         <!-- 顶部导航 -->
         <div class="flex justify-between items-center mb-8">
             <div class="text-center flex-1">
-                <h1 class="text-3xl font-bold text-gray-800">百度网盘批量转存工具</h1>
-                <p class="text-gray-600 mt-2">支持公开链接和好友分享，一键批量转存</p>
+                <h1 class="text-3xl font-bold text-gray-800">
+                    <span x-text="t('app.title')">百度网盘批量转存工具</span>
+                    <span x-show="appVersion" x-cloak class="text-sm font-normal text-gray-500 ml-2">v<span x-text="appVersion"></span></span>
+                </h1>
+                <p class="text-gray-600 mt-2" x-text="t('app.subtitle')">支持公开链接和好友分享，一键批量转存</p>
             </div>
             <div class="flex items-center gap-4">
+                <!-- 语言切换 -->
+                <button 
+                    @click="setLang(lang === 'zh' ? 'en' : 'zh')"
+                    class="px-2 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    :title="lang === 'zh' ? 'Switch to English' : '切换到中文'"
+                >
+                    <span x-text="lang === 'zh' ? 'EN' : '中'"></span>
+                </button>
+                <!-- Debug 模式切换（胶囊型推拉开关） -->
+                <div 
+                    @click="toggleDebug()"
+                    class="flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer transition-colors"
+                    :title="debugMode ? t('header.debug_off') : t('header.debug_on')"
+                >
+                    <span class="text-sm">🪲</span>
+                    <div class="capsule-switch" :class="{ 'active': debugMode }"></div>
+                </div>
                 <!-- 深色模式切换 -->
                 <button 
                     @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)"
                     class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
-                    :title="darkMode ? '切换到亮色模式' : '切换到深色模式'"
+                    :title="darkMode ? t('header.light_mode') : t('header.dark_mode')"
                 >
                     <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
@@ -130,7 +206,7 @@
                 <button 
                     @click="showStats = !showStats; if(showStats) loadStats()"
                     class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
-                    title="查看统计"
+                    :title="t('header.stats')"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
@@ -141,23 +217,23 @@
 
         <!-- 统计面板 -->
         <div x-show="showStats" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">📊 数据统计</h2>
+            <h2 class="text-xl font-semibold mb-4" x-text="t('stats.title')">📊 数据统计</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg text-center">
                     <div class="text-2xl font-bold text-blue-600 dark:text-blue-300" x-text="stats.total_tasks">0</div>
-                    <div class="text-sm text-blue-500">总任务数</div>
+                    <div class="text-sm text-blue-500" x-text="t('stats.total_tasks')">总任务数</div>
                 </div>
                 <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg text-center">
                     <div class="text-2xl font-bold text-green-600 dark:text-green-300" x-text="stats.success_tasks">0</div>
-                    <div class="text-sm text-green-500">成功任务</div>
+                    <div class="text-sm text-green-500" x-text="t('stats.success_tasks')">成功任务</div>
                 </div>
                 <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg text-center">
                     <div class="text-2xl font-bold text-purple-600 dark:text-purple-300" x-text="stats.total_files">0</div>
-                    <div class="text-sm text-purple-500">总文件数</div>
+                    <div class="text-sm text-purple-500" x-text="t('stats.total_files')">总文件数</div>
                 </div>
                 <div class="bg-orange-50 dark:bg-orange-900 p-4 rounded-lg text-center">
                     <div class="text-2xl font-bold text-orange-600 dark:text-orange-300" x-text="stats.success_rate + '%'">0%</div>
-                    <div class="text-sm text-orange-500">成功率</div>
+                    <div class="text-sm text-orange-500" x-text="t('stats.success_rate')">成功率</div>
                 </div>
             </div>
         </div>
@@ -168,7 +244,7 @@
                 <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
                 </svg>
-                连接百度网盘
+                <span x-text="t('connect.title')">连接百度网盘</span>
             </h2>
 
             <div class="space-y-4">
@@ -176,13 +252,13 @@
                 <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                     <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full">1</span>
                     <div class="flex-1">
-                        <p class="text-sm text-gray-700 mb-2">点击下方按钮打开百度网盘并登录</p>
+                        <p class="text-sm text-gray-700 mb-2" x-text="t('connect.step1_desc')">点击下方按钮打开百度网盘并登录</p>
                         <a href="https://pan.baidu.com" target="_blank"
                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium shadow-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                             </svg>
-                            打开百度网盘
+                            <span x-text="t('connect.open_pan')">打开百度网盘</span>
                         </a>
                     </div>
                 </div>
@@ -191,7 +267,7 @@
                 <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                     <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full">2</span>
                     <div class="flex-1">
-                        <p class="text-sm text-gray-700 mb-2">点击下方按钮复制书签代码，然后按快捷键添加书签</p>
+                        <p class="text-sm text-gray-700 mb-2" x-text="t('connect.step2_desc')">点击下方按钮复制书签代码，然后按快捷键添加书签</p>
                         <button
                             @click="copyBookmarkletAndGuide()"
                             class="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium shadow-sm"
@@ -199,32 +275,32 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
                             </svg>
-                            <span x-text="bmCopied ? '✅ 已复制！按快捷键添加书签' : '📌 复制代码并添加书签'"></span>
+                            <span x-text="bmCopied ? t('connect.bm_copied') : t('connect.bm_copy')"></span>
                         </button>
                         <!-- 添加书签引导（持久显示） -->
                         <div x-show="bmCopied && !bmGuideClosed" x-cloak class="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg relative">
-                            <button @click="bmGuideClosed = true" class="absolute top-2 right-2 text-blue-400 hover:text-blue-600 text-lg" title="关闭提示">×</button>
-                            <p class="text-sm text-blue-800 mb-3"><strong>✅ 代码已复制到剪贴板！</strong>请按以下步骤添加书签：</p>
+                            <button @click="bmGuideClosed = true" class="absolute top-2 right-2 text-blue-400 hover:text-blue-600 text-lg" :title="t('connect.bm_guide_close')">×</button>
+                            <p class="text-sm text-blue-800 mb-3"><strong x-text="t('connect.bm_clipboard_ok')"></strong></p>
                             <ol class="text-sm text-blue-700 space-y-2 list-decimal list-inside">
-                                <li>按 <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">D</kbd> 添加书签，名称改为「获取网盘Cookie」，点击完成</li>
-                                <li>在书签栏<strong>右键</strong>刚添加的书签 → <strong>编辑</strong></li>
-                                <li>将网址栏的内容<strong>全部删除</strong>，然后 <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">V</kbd> 粘贴代码，点击保存</li>
+                                <li x-html="t('connect.bm_guide_step1')"></li>
+                                <li x-html="t('connect.bm_guide_step2')"></li>
+                                <li x-html="t('connect.bm_guide_step3')"></li>
                             </ol>
-                            <p class="text-xs text-blue-600 mt-3">💡 添加完成后，按下方步骤3操作即可</p>
+                            <p class="text-xs text-blue-600 mt-3" x-text="t('connect.bm_guide_tip')"></p>
                         </div>
                         <!-- Fallback: show code in textarea if clipboard fails -->
                         <div x-show="bmShowCode" x-cloak class="mt-3">
                             <p class="text-xs text-red-500 mb-2" x-show="bmError" x-text="bmError"></p>
-                            <p class="text-xs text-gray-500 mb-2">自动复制失败，请手动全选下方代码并复制：</p>
+                            <p class="text-xs text-gray-500 mb-2" x-text="t('connect.bm_copy_failed')"></p>
                             <textarea
                                 x-ref="bmCodeArea"
                                 class="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-gray-50"
                                 readonly
                                 @click="$refs.bmCodeArea.select()"
-                                x-text="_bmCode || '加载中...'"
+                                x-text="_bmCode || t('connect.bm_loading')"
                                 x-init="$watch('bmShowCode', v => { if(v) { $nextTick(() => { $refs.bmCodeArea && $refs.bmCodeArea.select(); }); } })"
                             ></textarea>
-                            <p class="text-xs text-gray-400 mt-1">💡 点击文本框即可全选，然后 Ctrl+C / Cmd+C 复制</p>
+                            <p class="text-xs text-gray-400 mt-1" x-text="t('connect.bm_select_tip')"></p>
                         </div>
                     </div>
                 </div>
@@ -233,8 +309,8 @@
                 <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                     <span class="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-blue-500 text-white text-sm font-bold rounded-full">3</span>
                     <div class="flex-1">
-                        <p class="text-sm text-gray-700"><strong>回到百度网盘页面</strong>，点击刚添加的书签「获取网盘Cookie」，按弹窗指引操作</p>
-                        <p class="text-xs text-amber-600 mt-1">💡 百度网盘的 BDUSS 有 HttpOnly 保护，弹窗会引导你通过 Application 面板获取</p>
+                        <p class="text-sm text-gray-700" x-html="t('connect.step3_desc')"></p>
+                        <p class="text-xs text-amber-600 mt-1" x-text="t('connect.step3_tip')"></p>
                     </div>
                 </div>
             </div>
@@ -246,7 +322,7 @@
                         <svg class="w-5 h-5 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                         </svg>
-                        <span class="font-medium">已连接</span> — 用户: <span x-text="userInfo.username" class="font-medium ml-1"></span>
+                        <span class="font-medium" x-text="t('connect.connected')"></span> — <span x-text="t('connect.user')"></span> <span x-text="userInfo.username" class="font-medium ml-1"></span>
                     </div>
                 </template>
                 <template x-if="cookieStatus === 'invalid'">
@@ -263,7 +339,7 @@
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>等待连接... 完成步骤1-3后会自动获取Cookie</span>
+                        <span x-text="t('connect.waiting')"></span>
                     </div>
                 </template>
             </div>
@@ -272,11 +348,11 @@
             <div class="mt-4 border-t pt-4">
                 <button @click="showManualCookie = !showManualCookie" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
                     <span x-text="showManualCookie ? '▼' : '▶'"></span>
-                    无法自动获取？手动粘贴 Cookie
+                    <span x-text="t('connect.manual_toggle')"></span>
                 </button>
                 <div x-show="showManualCookie" x-cloak class="mt-3">
-                    <p class="text-xs text-gray-500 mb-2">从 Application → Cookies → pan.baidu.com 中复制 BDUSS 和 STOKEN 的值，拼成如下格式粘贴：</p>
-                    <p class="text-xs font-mono bg-gray-100 px-2 py-1 rounded mb-2">BDUSS=你的BDUSS值; STOKEN=你的STOKEN值</p>
+                    <p class="text-xs text-gray-500 mb-2" x-text="t('connect.manual_desc')"></p>
+                    <p class="text-xs font-mono bg-gray-100 px-2 py-1 rounded mb-2" x-text="t('connect.manual_format')"></p>
                     <div class="flex gap-3">
                         <input
                             type="text"
@@ -289,8 +365,8 @@
                             :disabled="!cookie || validating"
                             class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 text-sm"
                         >
-                            <span x-show="!validating">验证</span>
-                            <span x-show="validating">验证中...</span>
+                            <span x-show="!validating" x-text="t('connect.validate')">验证</span>
+                            <span x-show="validating" x-text="t('connect.validating')">验证中...</span>
                         </button>
                     </div>
                 </div>
@@ -305,14 +381,14 @@
                     :class="mode === 'single' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
                     class="px-4 py-2 border-b-2 font-medium"
                 >
-                    单个链接
+                    <span x-text="t('mode.single')">单个链接</span>
                 </button>
                 <button 
                     @click="mode = 'batch'" 
                     :class="mode === 'batch' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'"
                     class="px-4 py-2 border-b-2 font-medium"
                 >
-                    批量链接
+                    <span x-text="t('mode.batch')">批量链接</span>
                 </button>
             </div>
 
@@ -322,12 +398,12 @@
                     <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                     </svg>
-                    新建转存任务
+                    <span x-text="t('single.title')">新建转存任务</span>
                 </h2>
                 
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">分享链接</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" x-text="t('single.share_link')">分享链接</label>
                         <input 
                             type="text" 
                             x-model="shareLink" 
@@ -337,21 +413,21 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">提取码（如有）</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" x-text="t('single.share_pwd')">提取码（如有）</label>
                         <input 
                             type="text" 
                             x-model="sharePwd" 
-                            placeholder="留空表示无需提取码" 
+                            :placeholder="t('single.pwd_placeholder')"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">目标路径</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" x-text="t('single.target_path')">目标路径</label>
                         <input 
                             type="text" 
                             x-model="targetPath" 
-                            placeholder="/我的资源/转存文件" 
+                            :placeholder="t('single.target_placeholder')" 
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                     </div>
@@ -361,10 +437,10 @@
                         :disabled="!shareLink || !targetPath || !cookieValid || parsing"
                         class="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
-                        <span x-show="!parsing">解析分享链接</span>
-                        <span x-show="parsing && parseProgress.status === 'verifying'">🔗 验证分享链接... <span class="text-sm opacity-75" x-text="parseElapsed + 's'"></span></span>
+                        <span x-show="!parsing" x-text="t('single.parse')">解析分享链接</span>
+                        <span x-show="parsing && parseProgress.status === 'verifying'"><span x-text="t('single.verifying')"></span> <span class="text-sm opacity-75" x-text="parseElapsed + 's'"></span></span>
                         <span x-show="parsing && parseProgress.status === 'enumerating'">
-                            📂 扫描中 <span x-text="parseElapsed + 's'"></span> | <span x-text="parseProgress.dirs_scanned"></span> 目录 <span x-text="parseProgress.files_found"></span> 文件
+                            <span x-text="t('single.scanning')"></span> <span x-text="parseElapsed + 's'"></span> | <span x-text="parseProgress.dirs_scanned"></span> <span x-text="t('single.dirs')"></span> <span x-text="parseProgress.files_found"></span> <span x-text="t('single.files')"></span>
                         </span>
                     </button>
                 </div>
@@ -376,29 +452,29 @@
                     <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
                     </svg>
-                    批量转存任务
+                    <span x-text="t('batch.title')">批量转存任务</span>
                 </h2>
                 
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                            分享链接列表 
-                            <span class="text-gray-500 font-normal">（每行一个，格式：链接 提取码）</span>
+                            <span x-text="t('batch.links_label')">分享链接列表</span> 
+                            <span class="text-gray-500 font-normal" x-text="t('batch.links_hint')">（每行一个，格式：链接 提取码）</span>
                         </label>
                         <textarea 
                             x-model="batchLinks" 
                             rows="6"
-                            placeholder="https://pan.baidu.com/s/xxx1 密码1&#10;https://pan.baidu.com/s/xxx2 密码2&#10;https://pan.baidu.com/s/xxx3"
+                            :placeholder="t('batch.link_placeholder')"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                         ></textarea>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">目标路径</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" x-text="t('single.target_path')">目标路径</label>
                         <input 
                             type="text" 
                             x-model="targetPath" 
-                            placeholder="/我的资源/批量转存" 
+                            :placeholder="t('batch.target_placeholder')" 
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                     </div>
@@ -410,7 +486,7 @@
                             id="createSubdirs"
                             class="mr-2"
                         >
-                        <label for="createSubdirs" class="text-sm text-gray-700">为每个分享创建子目录</label>
+                        <label for="createSubdirs" class="text-sm text-gray-700" x-text="t('batch.create_subdirs')">为每个分享创建子目录</label>
                     </div>
                     
                     <button 
@@ -418,8 +494,8 @@
                         :disabled="!batchLinks || !targetPath || !cookieValid || parsing"
                         class="w-full px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
-                        <span x-show="!parsing">解析批量链接</span>
-                        <span x-show="parsing">解析中...</span>
+                        <span x-show="!parsing" x-text="t('batch.parse')">解析批量链接</span>
+                        <span x-show="parsing" x-text="t('batch.parsing')">解析中...</span>
                     </button>
                 </div>
             </div>
@@ -427,27 +503,27 @@
 
         <!-- 文件预览和确认（单个链接） -->
         <div x-show="previewData && mode === 'single'" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">文件预览</h2>
+            <h2 class="text-xl font-semibold mb-4" x-text="t('preview.title')">文件预览</h2>
             
             <!-- 分享信息 -->
             <div class="mb-4 p-4 bg-blue-50 rounded-lg">
                 <p class="text-blue-800">
-                    <span class="font-medium">分享标题：</span>
+                    <span class="font-medium" x-text="t('preview.share_title')">分享标题：</span>
                     <span x-text="previewData?.share_title"></span>
                 </p>
                 <div class="flex gap-6 mt-2">
                     <p class="text-blue-800">
-                        <span class="font-medium">顶层目录：</span>
-                        <span x-text="previewData?.dirs_count" class="font-bold text-blue-600"></span> 个
+                        <span class="font-medium" x-text="t('preview.top_dirs')">顶层目录：</span>
+                        <span x-text="previewData?.dirs_count" class="font-bold text-blue-600"></span>
                     </p>
                     <p class="text-blue-800">
-                        <span class="font-medium">顶层文件：</span>
-                        <span x-text="previewData?.files_count" class="font-bold text-blue-600"></span> 个
+                        <span class="font-medium" x-text="t('preview.top_files')">顶层文件：</span>
+                        <span x-text="previewData?.files_count" class="font-bold text-blue-600"></span>
                     </p>
                 </div>
                 <p class="text-xs text-blue-500 mt-2">
-                    💡 点击文件夹可展开查看子目录，已展开 <span x-text="Object.keys(treeExpanded).length"></span> 个目录，
-                    共发现 <span x-text="treeStats.dirs"></span> 个子目录、<span x-text="treeStats.files"></span> 个文件
+                    <span x-text="t('preview.tree_info')"></span> <span x-text="Object.keys(treeExpanded).length"></span> <span x-text="t('preview.tree_info_dirs')"></span>
+                    <span x-text="t('preview.tree_info_found')"></span> <span x-text="treeStats.dirs"></span> <span x-text="t('preview.tree_info_subdirs')"></span><span x-text="treeStats.files"></span> <span x-text="t('preview.tree_info_files')"></span>
                 </p>
             </div>
             
@@ -455,22 +531,22 @@
             <div class="flex items-center justify-between mb-3">
                 <div class="flex gap-2">
                     <button @click="selectAll()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
-                        全选
+                        <span x-text="t('preview.select_all')">全选</span>
                     </button>
                     <button @click="deselectAll()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
-                        取消全选
+                        <span x-text="t('preview.deselect_all')">取消全选</span>
                     </button>
                 </div>
                 <div class="text-sm text-gray-600">
-                    已选 <span x-text="Object.keys(treeSelected).length" class="font-bold text-blue-600"></span> 项
-                    （<span x-text="treeStats.selectedFiles" class="font-bold text-blue-600"></span> 个文件）
+                    <span x-text="t('preview.selected')"></span> <span x-text="Object.keys(treeSelected).length" class="font-bold text-blue-600"></span> <span x-text="t('preview.items')"></span>
+                    （<span x-text="treeStats.selectedFiles" class="font-bold text-blue-600"></span> <span x-text="t('preview.files_count')"></span>）
                 </div>
             </div>
             
             <!-- 文件树 -->
             <div class="max-h-96 overflow-y-auto border rounded-lg" id="file-tree">
                 <template x-if="fileTree.length === 0">
-                    <div class="p-4 text-center text-gray-400">暂无文件</div>
+                    <div class="p-4 text-center text-gray-400" x-text="t('preview.no_files')">暂无文件</div>
                 </template>
                 
                 <template x-for="(item, index) in fileTree" :key="item.path || index">
@@ -569,43 +645,43 @@
                     :disabled="transferring || Object.keys(treeSelected).length === 0"
                     class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium"
                 >
-                    <span x-show="!transferring">转存选中的 <span x-text="Object.keys(treeSelected).length"></span> 项</span>
-                    <span x-show="transferring">⏳ 转存中...</span>
+                    <span x-show="!transferring"><span x-text="t('preview.transfer_selected')"></span> <span x-text="Object.keys(treeSelected).length"></span> <span x-text="t('preview.items')"></span></span>
+                    <span x-show="transferring" x-text="t('preview.transferring')">⏳ 转存中...</span>
                 </button>
                 <button 
-                    @click="startTransfer(false)" 
+                    @click="selectAll(); startTransfer(false)" 
                     :disabled="transferring"
                     class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                    title="使用旧版全量转存（需要先展开所有目录）"
+                    :title="t('preview.transfer_all_title')"
                 >
-                    全量转存
+                    <span x-text="t('preview.transfer_all')">全量转存</span>
                 </button>
                 <button 
                     @click="cancelPreview()" 
                     class="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
                 >
-                    取消
+                    <span x-text="t('preview.cancel')">取消</span>
                 </button>
             </div>
         </div>
 
         <!-- 批量预览 -->
         <div x-show="batchPreviewData && mode === 'batch'" x-cloak class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">批量任务预览</h2>
+            <h2 class="text-xl font-semibold mb-4" x-text="t('batch_preview.title')">批量任务预览</h2>
             
             <div class="mb-4 p-4 bg-purple-50 rounded-lg">
                 <p class="text-purple-800">
-                    <span class="font-medium">链接数量：</span>
-                    <span x-text="batchPreviewData?.total_links" class="font-bold"></span> 个
+                    <span class="font-medium" x-text="t('batch_preview.link_count')">链接数量：</span>
+                    <span x-text="batchPreviewData?.total_links" class="font-bold"></span>
                 </p>
                 <p class="text-purple-800 mt-1">
-                    <span class="font-medium">文件总数：</span>
-                    <span x-text="batchPreviewData?.total_files" class="text-2xl font-bold text-purple-600"></span> 个
+                    <span class="font-medium" x-text="t('batch_preview.file_total')">文件总数：</span>
+                    <span x-text="batchPreviewData?.total_files" class="text-2xl font-bold text-purple-600"></span>
                 </p>
             </div>
             
             <div class="mb-4">
-                <h3 class="font-medium text-gray-700 mb-2">链接解析结果：</h3>
+                <h3 class="font-medium text-gray-700 mb-2" x-text="t('batch_preview.results')">链接解析结果：</h3>
                 <div class="max-h-60 overflow-y-auto border rounded-lg p-3">
                     <template x-for="(result, index) in batchPreviewData?.results || []" :key="index">
                         <div class="py-2 border-b last:border-b-0 flex justify-between items-center">
@@ -614,7 +690,7 @@
                             </div>
                             <div class="ml-4">
                                 <span x-show="result.status === 'ready'" class="text-green-600 text-sm">
-                                    ✓ <span x-text="result.total_files"></span> 个文件
+                                    ✓ <span x-text="result.total_files"></span> <span x-text="t('batch_preview.file_count')"></span>
                                 </span>
                                 <span x-show="result.status === 'error'" class="text-red-600 text-sm" x-text="result.error"></span>
                             </div>
@@ -629,13 +705,13 @@
                     :disabled="transferring"
                     class="flex-1 px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 font-medium"
                 >
-                    开始批量转存
+                    <span x-text="t('batch_preview.start')">开始批量转存</span>
                 </button>
                 <button 
                     @click="cancelPreview()" 
                     class="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
                 >
-                    取消
+                    <span x-text="t('preview.cancel')">取消</span>
                 </button>
             </div>
         </div>
@@ -643,10 +719,10 @@
         <!-- 覆盖确认弹窗 -->
         <div x-show="showOverwriteConfirm" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                <h3 class="text-lg font-semibold mb-4">确认覆盖</h3>
+                <h3 class="text-lg font-semibold mb-4" x-text="t('overwrite.title')">确认覆盖</h3>
                 <p class="text-gray-600 mb-4" x-text="confirmMessage"></p>
                 <div x-show="existingFiles.length > 0" class="mb-4 max-h-40 overflow-y-auto">
-                    <p class="text-sm text-gray-500 mb-2">已存在的文件：</p>
+                    <p class="text-sm text-gray-500 mb-2" x-text="t('overwrite.existing')">已存在的文件：</p>
                     <template x-for="(file, index) in existingFiles" :key="index">
                         <div class="text-sm text-gray-600 py-1" x-text="file"></div>
                     </template>
@@ -656,13 +732,13 @@
                         @click="confirmOverwrite(true)" 
                         class="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
                     >
-                        确认覆盖
+                        <span x-text="t('overwrite.confirm')">确认覆盖</span>
                     </button>
                     <button 
                         @click="confirmOverwrite(false)" 
                         class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
                     >
-                        取消
+                        <span x-text="t('overwrite.cancel')">取消</span>
                     </button>
                 </div>
             </div>
@@ -675,7 +751,7 @@
                     <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
-                    任务进度
+                    <span x-text="t('progress.title')">任务进度</span>
                 </div>
                 <div class="flex gap-2">
                     <button 
@@ -683,14 +759,14 @@
                         @click="pauseTask()"
                         class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
                     >
-                        暂停
+                        <span x-text="t('progress.pause')">暂停</span>
                     </button>
                     <button 
                         x-show="progress.status === 'paused'" 
                         @click="resumeTask()"
                         class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
                     >
-                        继续
+                        <span x-text="t('progress.resume')">继续</span>
                     </button>
                     <!-- DTS2026061748509 — 断点续传/重新启动按钮 -->
                     <!-- DTS2026061801236 — 按钮样式优化：渐变+SVG+动画 -->
@@ -703,7 +779,7 @@
                         <svg class="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                         </svg>
-                        <span x-text="progress.has_checkpoint ? '断点续传' : '重新启动'"></span>
+                        <span x-text="progress.has_checkpoint ? t('progress.checkpoint') : t('progress.restart')"></span>
                     </button>
                 </div>
             </h2>
@@ -722,8 +798,8 @@
             </div>
             
             <!-- 当前操作描述 -->
-            <div x-show="progress.current_action" class="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-                <span x-text="progress.current_action"></span>
+            <div x-show="currentActionText" class="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                <span x-text="currentActionText"></span>
             </div>
             
             <!-- 阶段进度（懒加载模式） -->
@@ -732,22 +808,22 @@
                     <!-- 收集阶段 -->
                     <div x-show="progress.phase === 'collecting'" class="space-y-2">
                         <div class="flex justify-between text-sm text-gray-600">
-                            <span>📂 扫描进度</span>
-                            <span x-text="progress.dirs_scanned + ' 个目录，' + progress.files_found + ' 个文件'"></span>
+                            <span x-text="t('progress.scan_progress')">📂 扫描进度</span>
+                            <span x-text="progress.dirs_scanned + ' ' + t('progress.dirs_files') + ' ' + progress.files_found + ' ' + t('single.files')"></span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-3">
                             <div class="bg-blue-400 h-3 rounded-full animate-pulse" style="width: 100%"></div>
                         </div>
                         <div class="flex justify-between text-xs text-gray-400">
-                            <span>当前：<span x-text="progress.current_dir || '...'"></span></span>
-                            <span x-text="progress.api_requests + ' 次API请求'"></span>
+                            <span><span x-text="t('progress.current')"></span><span x-text="progress.current_dir || '...'"></span></span>
+                            <span x-text="progress.api_requests + ' ' + t('progress.api_requests')"></span>
                         </div>
                     </div>
                     
                     <!-- 转存阶段 -->
                     <div x-show="progress.phase === 'transferring'" class="space-y-2">
                         <div class="flex justify-between text-sm text-gray-600 mb-1">
-                            <span>📦 转存进度：<span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
+                            <span><span x-text="t('progress.transfer_progress')"></span><span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
                             <span x-text="progressPercent + '%'"></span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-4">
@@ -758,8 +834,8 @@
                     <!-- 完成阶段 -->
                     <div x-show="progress.phase === 'completed'" class="space-y-2">
                         <div class="flex justify-between text-sm text-gray-600 mb-1">
-                            <span>✅ 转存完成</span>
-                            <span x-text="progress.files_found + ' 个文件'"></span>
+                            <span x-text="t('progress.transfer_done')">✅ 转存完成</span>
+                            <span x-text="progress.files_found + ' ' + t('single.files')"></span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-4">
                             <div class="bg-green-500 h-4 rounded-full" style="width: 100%"></div>
@@ -772,7 +848,7 @@
             <template x-if="progress.mode !== 'lazy'">
                 <div class="mb-4">
                     <div class="flex justify-between text-sm text-gray-600 mb-1">
-                        <span>进度：<span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
+                        <span><span x-text="t('progress.progress')"></span><span x-text="progress.completed"></span> / <span x-text="progress.total"></span></span>
                         <span x-text="progressPercent + '%'"></span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-4">
@@ -784,33 +860,33 @@
             <!-- 统计信息 -->
             <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
                 <div>
-                    <span class="text-gray-500">速度：</span>
+                    <span class="text-gray-500" x-text="t('progress.speed_label')">速度：</span>
                     <!-- DTS2026061748507 — 修复undefined速度显示 -->
-                    <span class="font-medium" x-text="(progress.speed || 0) + ' 文件/秒'"></span>
+                    <span class="font-medium" x-text="(progress.speed || 0) + ' ' + t('progress.speed_unit')"></span>
                 </div>
                 <div>
-                    <span class="text-gray-500">已用时间：</span>
+                    <span class="text-gray-500" x-text="t('progress.elapsed_label')">已用时间：</span>
                     <span class="font-medium" x-text="transferElapsed > 0 ? formatTime(transferElapsed) : formatTime(progress.elapsed)"></span>
                 </div>
                 <div>
-                    <span class="text-gray-500">失败：</span>
+                    <span class="text-gray-500" x-text="t('progress.failed_label')">失败：</span>
                     <span class="font-medium text-red-600" x-text="progress.failed || 0"></span>
                 </div>
             </div>
             
             <!-- 批次信息 -->
             <div x-show="progress.total_batches > 0" class="text-sm text-gray-600 mb-4">
-                批次：<span x-text="progress.current_batch || 0"></span> / <span x-text="progress.total_batches"></span>
+                <span x-text="t('progress.batch_label')"></span><span x-text="progress.current_batch || 0"></span> / <span x-text="progress.total_batches"></span>
             </div>
             
             <!-- 断点续传提示 -->
             <div x-show="progress.has_checkpoint && progress.status === 'error'" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                💡 检测到断点记录，重新启动任务将从上次中断处继续（已转存的文件会自动跳过）
+                <span x-text="t('progress.checkpoint_tip')"></span>
             </div>
             
             <!-- 失败文件 -->
             <div x-show="progress.failed > 0" class="mb-4">
-                <p class="text-red-600 font-medium">失败文件：<span x-text="progress.failed"></span> 个</p>
+                <p class="text-red-600 font-medium"><span x-text="t('progress.failed_files')"></span><span x-text="progress.failed"></span></p>
                 <div class="max-h-30 overflow-y-auto">
                     <template x-for="(file, index) in progress.failed_files || []" :key="index">
                         <div class="text-sm text-red-500" x-text="`${file.name}: ${file.error}`"></div>
@@ -821,9 +897,9 @@
             <!-- 日志 -->
             <div x-show="progress.logs && progress.logs.length > 0">
                 <h3 class="font-medium text-gray-700 mb-2 flex items-center justify-between">
-                    <span>执行日志（<span x-text="(progress.logs || []).length"></span>）</span>
+                    <span><span x-text="t('progress.log_title')"></span>（<span x-text="(progress.logs || []).length"></span>）</span>
                     <button @click="logsCollapsed = !logsCollapsed" class="text-xs text-blue-500 hover:text-blue-700">
-                        <span x-text="logsCollapsed ? '展开 ▼' : '收起 ▲'"></span>
+                        <span x-text="logsCollapsed ? t('progress.expand') : t('progress.collapse')"></span>
                     </button>
                 </h3>
                 <div x-show="!logsCollapsed" x-transition class="log-container bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono">
@@ -838,7 +914,7 @@
                                       'text-blue-400': log.level === 'INFO'
                                   }"
                                   x-text="'[' + (log.level || 'INFO') + ']'"></span>
-                            <span class="text-gray-200" x-text="log.message || log"></span>
+                            <span class="text-gray-200" x-text="renderLog(log)"></span>
                         </div>
                     </template>
                 </div>
@@ -850,7 +926,7 @@
                     @click="exportLog()" 
                     class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
                 >
-                    导出日志
+                    <span x-text="t('progress.export')">导出日志</span>
                 </button>
             </div>
         </div>
@@ -862,31 +938,31 @@
                     <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
-                    历史任务
+                    <span x-text="t('history.title')">历史任务</span>
                 </h2>
                 <button 
                     x-show="historyTasks.length > 0"
-                    @click="if(confirm('确定清空所有记录？')) clearAllTasks()" 
+                    @click="if(confirm(t('history.clear_confirm'))) clearAllTasks()" 
                     class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
                 >
-                    清空记录
+                    <span x-text="t('history.clear')">清空记录</span>
                 </button>
             </div>
             
             <div x-show="historyTasks.length === 0" class="text-gray-500 text-center py-8">
-                暂无历史任务
+                <span x-text="t('history.empty')">暂无历史任务</span>
             </div>
             
             <div class="overflow-x-auto">
                 <table class="w-full" x-show="historyTasks.length > 0">
                     <thead>
                         <tr class="bg-gray-50">
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">任务ID</th>
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">分享链接</th>
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">目标路径</th>
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">状态</th>
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">进度</th>
-                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">创建时间</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.task_id')">任务ID</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.share_link')">分享链接</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.target_path')">目标路径</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.status')">状态</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.progress')">进度</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.created_at')">创建时间</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -917,12 +993,483 @@
     </div>
 
     <script>
+        // ===== i18n Translations =====
+        const i18n = {
+            zh: {
+                // App
+                'app.title': '百度网盘批量转存工具',
+                'app.subtitle': '支持公开链接和好友分享，一键批量转存',
+                // Header toggles
+                'header.debug_off': '关闭 Debug 模式',
+                'header.debug_on': '开启 Debug 模式',
+                'header.light_mode': '切换到亮色模式',
+                'header.dark_mode': '切换到深色模式',
+                'header.stats': '查看统计',
+                'header.lang_switch': 'English',
+                // Stats
+                'stats.title': '📊 数据统计',
+                'stats.total_tasks': '总任务数',
+                'stats.success_tasks': '成功任务',
+                'stats.total_files': '总文件数',
+                'stats.success_rate': '成功率',
+                // Connect section
+                'connect.title': '连接百度网盘',
+                'connect.step1_desc': '点击下方按钮打开百度网盘并登录',
+                'connect.open_pan': '打开百度网盘',
+                'connect.step2_desc': '点击下方按钮复制书签代码，然后按快捷键添加书签',
+                'connect.bm_copied': '✅ 已复制！按快捷键添加书签',
+                'connect.bm_copy': '📌 复制代码并添加书签',
+                'connect.bm_guide_close': '关闭提示',
+                'connect.bm_clipboard_ok': '✅ 代码已复制到剪贴板！',
+                'connect.bm_guide_step1': '按 <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">D</kbd> 添加书签，名称改为「获取网盘Cookie」，点击完成',
+                'connect.bm_guide_step2': '在书签栏<strong>右键</strong>刚添加的书签 → <strong>编辑</strong>',
+                'connect.bm_guide_step3': '将网址栏的内容<strong>全部删除</strong>，然后 <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">V</kbd> 粘贴代码，点击保存',
+                'connect.bm_guide_tip': '💡 添加完成后，按下方步骤3操作即可',
+                'connect.bm_copy_failed': '自动复制失败，请手动全选下方代码并复制：',
+                'connect.bm_loading': '加载中...',
+                'connect.bm_select_tip': '💡 点击文本框即可全选，然后 Ctrl+C / Cmd+C 复制',
+                'connect.step3_desc': '<strong>回到百度网盘页面</strong>，点击刚添加的书签「获取网盘Cookie」，按弹窗指引操作',
+                'connect.step3_tip': '💡 百度网盘的 BDUSS 有 HttpOnly 保护，弹窗会引导你通过 Application 面板获取',
+                'connect.connected': '已连接',
+                'connect.user': '用户:',
+                'connect.waiting': '等待连接... 完成步骤1-3后会自动获取Cookie',
+                'connect.manual_toggle': '无法自动获取？手动粘贴 Cookie',
+                'connect.manual_desc': '从 Application → Cookies → pan.baidu.com 中复制 BDUSS 和 STOKEN 的值，拼成如下格式粘贴：',
+                'connect.manual_format': 'BDUSS=你的BDUSS值; STOKEN=你的STOKEN值',
+                'connect.validate': '验证',
+                'connect.validating': '验证中...',
+                // Mode tabs
+                'mode.single': '单个链接',
+                'mode.batch': '批量链接',
+                // Single mode
+                'single.title': '新建转存任务',
+                'single.share_link': '分享链接',
+                'single.share_pwd': '提取码（如有）',
+                'single.pwd_placeholder': '留空表示无需提取码',
+                'single.target_path': '目标路径',
+                'single.target_placeholder': '/我的资源/转存文件',
+                'single.unknown': '未知',
+                'single.parse': '解析分享链接',
+                'single.verifying': '🔗 验证分享链接...',
+                'single.scanning': '📂 扫描中',
+                'single.dirs': '目录',
+                'single.files': '文件',
+                // Batch mode
+                'batch.title': '批量转存任务',
+                'batch.links_label': '分享链接列表',
+                'batch.links_hint': '（每行一个，格式：链接 提取码）',
+                'batch.target_path': '目标路径',
+                'batch.create_subdirs': '为每个分享创建子目录',
+                'batch.parse': '解析批量链接',
+                'batch.parsing': '解析中...',
+                'batch.target_placeholder': '/我的资源/批量转存',
+                'batch.link_placeholder': 'https://pan.baidu.com/s/xxx1 code1\nhttps://pan.baidu.com/s/xxx2 code2\nhttps://pan.baidu.com/s/xxx3',
+                // Preview (single)
+                'preview.title': '文件预览',
+                'preview.share_title': '分享标题：',
+                'preview.top_dirs': '顶层目录：',
+                'preview.top_files': '顶层文件：',
+                'preview.tree_info': '💡 点击文件夹可展开查看子目录，已展开',
+                'preview.tree_info_dirs': '个目录，',
+                'preview.tree_info_found': '共发现',
+                'preview.tree_info_subdirs': '个子目录、',
+                'preview.tree_info_files': '个文件',
+                'preview.select_all': '全选',
+                'preview.deselect_all': '取消全选',
+                'preview.selected': '已选',
+                'preview.items': '项',
+                'preview.files_count': '个文件',
+                'preview.no_files': '暂无文件',
+                'preview.transfer_selected': '转存选中的',
+                'preview.transferring': '⏳ 转存中...',
+                'preview.transfer_all': '全量转存',
+                'preview.transfer_all_title': '使用旧版全量转存（需要先展开所有目录）',
+                'preview.cancel': '取消',
+                // Batch preview
+                'batch_preview.title': '批量任务预览',
+                'batch_preview.link_count': '链接数量：',
+                'batch_preview.file_total': '文件总数：',
+                'batch_preview.results': '链接解析结果：',
+                'batch_preview.file_count': '个文件',
+                'batch_preview.start': '开始批量转存',
+                'batch_preview.cancel': '取消',
+                // Overwrite confirm
+                'overwrite.title': '确认覆盖',
+                'overwrite.existing': '已存在的文件：',
+                'overwrite.confirm': '确认覆盖',
+                'overwrite.cancel': '取消',
+                // Progress
+                'progress.title': '任务进度',
+                'progress.pause': '暂停',
+                'progress.resume': '继续',
+                'progress.checkpoint': '断点续传',
+                'progress.restart': '重新启动',
+                'progress.scan_progress': '📂 扫描进度',
+                'progress.dirs_files': '个目录，',
+                'progress.current': '当前：',
+                'progress.api_requests': '次API请求',
+                'progress.transfer_progress': '📦 转存进度：',
+                'progress.transfer_done': '✅ 转存完成',
+                'progress.progress': '进度：',
+                'progress.speed_label': '速度：',
+                'progress.speed_unit': '文件/秒',
+                'progress.elapsed_label': '已用时间：',
+                'progress.failed_label': '失败：',
+                'progress.batch_label': '批次：',
+                'progress.checkpoint_tip': '💡 检测到断点记录，重新启动任务将从上次中断处继续（已转存的文件会自动跳过）',
+                'progress.failed_files': '失败文件：',
+                'progress.log_title': '执行日志',
+                'progress.expand': '展开 ▼',
+                'progress.collapse': '收起 ▲',
+                'progress.export': '导出日志',
+                // Log messages
+                'log.started': '开始流水线转存，surl={surl}',
+                'log.dir_exists': '目标目录已存在: {path}',
+                'log.target_dir': '目标目录: {path}',
+                'log.checkpoint': '断点续传：已有 {count} 个文件已转存',
+                'log.validating_cookie': '验证 cookie 有效性...',
+                'log.cookie_expired': 'Cookie 已失效: {error}，请重新设置 cookie 后重试',
+                'log.cookie_valid': 'Cookie 有效，用户: {user}',
+                'log.pipeline_start': '开始流水线：每收集 {batch_size} 个文件立即转存',
+                'log.collect_failed': '收集失败(第{batch}批): {error}',
+                'log.batch_info': '[流水线] 第{batch}批: {total}文件, {skipped}已跳过, {remaining}待转存',
+                'log.batch_rate_limited': '第{batch}批被限流(errno={errno})，保存断点停止',
+                'log.batch_cookie_expired': '第{batch}批失败: Cookie 已失效(errno={errno})，请重新设置 cookie 后重启任务',
+                'log.batch_errno2': '第{batch}批errno=2, 逐个转存',
+                'log.single_file_failed': '  ❌ 单文件失败: {name} (errno={errno})',
+                'log.batch_failed': '第{batch}批失败: {error} (errno={errno})',
+                'log.summary_title': '📊 转存总结:',
+                'log.summary_planned': '  计划转存: {count} 个文件',
+                'log.summary_success': '  实际成功: {count} 个',
+                'log.summary_skipped': '  跳过(已转存): {count} 个',
+                'log.summary_failed': '  失败: {count} 个',
+                'log.summary_elapsed': '  耗时: {seconds}秒',
+                'log.transfer_error': '转存异常: {error}',
+                'log.paused': '任务已暂停',
+                'log.resumed': '任务已继续',
+                // Current action messages
+                'progress.action.creating_dir': '正在创建目标目录...',
+                'progress.action.scanning': '正在扫描目录{dir}... 已扫描 {dirs} 个目录，找到 {files} 个文件，{requests} 次API请求',
+                'progress.action.transferring': '正在转存: {completed}/{total} ({percent}%), 速度 {speed} 文件/秒, 第 {batch}/{batches} 批',
+                'progress.action.completed': '转存完成：{files} 个文件',
+                'progress.action.error': '转存失败：{error}',
+                'progress.action.status': '状态：{phase}',
+                // Default paths
+                'default.target_path': '/my_resources/labubu',
+                // History
+                'history.title': '历史任务',
+                'history.clear_confirm': '确定清空所有记录？',
+                'history.clear': '清空记录',
+                'history.empty': '暂无历史任务',
+                'history.task_id': '任务ID',
+                'history.share_link': '分享链接',
+                'history.target_path': '目标路径',
+                'history.status': '状态',
+                'history.progress': '进度',
+                'history.created_at': '创建时间',
+                // Status text
+                'status.pending': '待处理',
+                'status.ready': '就绪',
+                'status.running': '执行中',
+                'status.paused': '已暂停',
+                'status.completed': '已完成',
+                'status.error': '失败',
+                'status.waiting_confirm': '等待确认',
+                // Tour
+                'tour.welcome_title': '欢迎使用百度网盘批量转存工具！',
+                'tour.welcome_content': '这个工具可以帮助你一键批量转存百度网盘的共享文件。',
+                'tour.step1_title': '第一步：设置Cookie',
+                'tour.step1_content': '首先需要设置百度网盘的Cookie。点击"如何获取Cookie？"查看详细步骤。',
+                'tour.step2_title': '第二步：选择模式',
+                'tour.step2_content': '可以选择"单个链接"或"批量链接"模式。批量模式支持一次处理多个分享链接。',
+                'tour.step3_title': '第三步：开始转存',
+                'tour.step3_content': '输入分享链接和目标路径，点击解析后即可开始转存。支持暂停、继续和导出日志。',
+                'tour.step4_title': '快捷键提示',
+                'tour.step4_content': '• Ctrl+V：粘贴Cookie或链接\n• Enter：确认输入\n• Esc：关闭弹窗',
+                'tour.prev': '上一步',
+                'tour.next': '下一步',
+                'tour.start': '开始使用',
+                'tour.help_title': '查看帮助和快捷键',
+                // Alert messages
+                'alert.parse_failed': '解析失败：',
+                'alert.please_parse_first': '请先解析分享链接',
+                'alert.task_expired': '任务已过期（服务器重启），请重新解析分享链接',
+                'alert.start_failed': '启动失败：',
+                'alert.restart_failed': '重启失败：',
+                'alert.select_files_first': '请先选择要转存的文件',
+                'alert.transfer_failed': '转存失败：',
+                'alert.export_failed': '导出失败：',
+                'alert.cleared': '已清空',
+                'alert.clear_failed': '清空失败：',
+                'alert.cookie_invalid': 'Cookie无效',
+                'alert.validate_failed': '验证失败：',
+                'alert.code_failed': '获取代码失败，请刷新页面重试',
+                'alert.expand_dir_failed': '展开目录失败：',
+                'alert.server_non_json': '服务器返回非JSON响应 (HTTP ',
+                'alert.need_captcha': '需要验证码',
+                'alert.captcha_steps': '解决步骤：',
+                'alert.captcha_step1': '1. 点击下方链接在浏览器中打开',
+                'alert.captcha_step2': '2. 完成验证码验证',
+                'alert.captcha_step3': '3. 返回此页面重新解析',
+                'alert.captcha_link': '链接：',
+                'alert.rate_limit': '请求过于频繁',
+                'alert.rate_limit_detail': '系统已自动重试多次，但百度仍在限流。',
+                'alert.rate_limit_solution': '解决方法：',
+                'alert.rate_limit_wait': '1. 等待 3-5 分钟后再试',
+                'alert.rate_limit_refresh': '2. 或刷新页面重新获取Cookie',
+                'alert.rate_limit_tip': '提示：系统会自动控制请求频率，正常情况下不会触发限流。',
+                'alert.transfer_failed_read': '转存失败：无法读取服务器响应',
+                // Format
+                'format.seconds': '秒',
+                'format.minutes': '分',
+            },
+            en: {
+                // App
+                'app.title': 'Baidu Pan Batch Transfer Tool',
+                'app.subtitle': 'Support public links and friend sharing, batch transfer with one click',
+                // Header toggles
+                'header.debug_off': 'Turn off Debug Mode',
+                'header.debug_on': 'Turn on Debug Mode',
+                'header.light_mode': 'Switch to Light Mode',
+                'header.dark_mode': 'Switch to Dark Mode',
+                'header.stats': 'View Statistics',
+                'header.lang_switch': '中文',
+                // Stats
+                'stats.title': '📊 Statistics',
+                'stats.total_tasks': 'Total Tasks',
+                'stats.success_tasks': 'Successful Tasks',
+                'stats.total_files': 'Total Files',
+                'stats.success_rate': 'Success Rate',
+                // Connect section
+                'connect.title': 'Connect to Baidu Pan',
+                'connect.step1_desc': 'Click the button below to open Baidu Pan and log in',
+                'connect.open_pan': 'Open Baidu Pan',
+                'connect.step2_desc': 'Click the button below to copy the bookmark code, then use the shortcut to add a bookmark',
+                'connect.bm_copied': '✅ Copied! Use shortcut to add bookmark',
+                'connect.bm_copy': '📌 Copy Code & Add Bookmark',
+                'connect.bm_guide_close': 'Close',
+                'connect.bm_clipboard_ok': '✅ Code copied to clipboard!',
+                'connect.bm_guide_step1': 'Press <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">D</kbd> to add bookmark, rename to "Get Pan Cookie", click Done',
+                'connect.bm_guide_step2': '<strong>Right-click</strong> the bookmark in the bookmark bar → <strong>Edit</strong>',
+                'connect.bm_guide_step3': '<strong>Delete all</strong> content in the URL field, then <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">⌘</kbd> + <kbd class="px-1.5 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono">V</kbd> to paste the code, click Save',
+                'connect.bm_guide_tip': '💡 After adding, follow step 3 below',
+                'connect.bm_copy_failed': 'Auto-copy failed, please manually select and copy the code below:',
+                'connect.bm_loading': 'Loading...',
+                'connect.bm_select_tip': '💡 Click the text box to select all, then Ctrl+C / Cmd+C to copy',
+                'connect.step3_desc': '<strong>Go back to Baidu Pan page</strong>, click the "Get Pan Cookie" bookmark you just added, and follow the popup instructions',
+                'connect.step3_tip': '💡 BDUSS has HttpOnly protection, the popup will guide you to get it via the Application panel',
+                'connect.connected': 'Connected',
+                'connect.user': 'User:',
+                'connect.waiting': 'Waiting for connection... Cookie will be auto-captured after completing steps 1-3',
+                'connect.manual_toggle': 'Can\'t auto-detect? Manually paste Cookie',
+                'connect.manual_desc': 'Copy BDUSS and STOKEN values from Application → Cookies → pan.baidu.com, format as shown below:',
+                'connect.manual_format': 'BDUSS=yourBDUSSvalue; STOKEN=yourSTOKENvalue',
+                'connect.validate': 'Validate',
+                'connect.validating': 'Validating...',
+                // Mode tabs
+                'mode.single': 'Single Link',
+                'mode.batch': 'Batch Links',
+                // Single mode
+                'single.title': 'New Transfer Task',
+                'single.share_link': 'Share Link',
+                'single.share_pwd': 'Extract Code (if any)',
+                'single.pwd_placeholder': 'Leave empty if no code needed',
+                'single.target_path': 'Target Path',
+                'single.target_placeholder': '/my_files/transfer',
+                'single.unknown': 'Unknown',
+                'single.parse': 'Parse Share Link',
+                'single.verifying': '🔗 Verifying share link...',
+                'single.scanning': '📂 Scanning',
+                'single.dirs': 'dirs',
+                'single.files': 'files',
+                // Batch mode
+                'batch.title': 'Batch Transfer Task',
+                'batch.links_label': 'Share Link List',
+                'batch.links_hint': '(one per line, format: link extract_code)',
+                'batch.target_path': 'Target Path',
+                'batch.create_subdirs': 'Create subdirectory for each share',
+                'batch.parse': 'Parse Batch Links',
+                'batch.parsing': 'Parsing...',
+                'batch.target_placeholder': '/my_files/batch',
+                'batch.link_placeholder': 'https://pan.baidu.com/s/xxx1 code1\nhttps://pan.baidu.com/s/xxx2 code2\nhttps://pan.baidu.com/s/xxx3',
+                // Preview (single)
+                'preview.title': 'File Preview',
+                'preview.share_title': 'Share Title:',
+                'preview.top_dirs': 'Top-level Dirs:',
+                'preview.top_files': 'Top-level Files:',
+                'preview.tree_info': '💡 Click folders to expand, expanded',
+                'preview.tree_info_dirs': 'dirs,',
+                'preview.tree_info_found': 'found',
+                'preview.tree_info_subdirs': 'subdirs,',
+                'preview.tree_info_files': 'files',
+                'preview.select_all': 'Select All',
+                'preview.deselect_all': 'Deselect All',
+                'preview.selected': 'Selected',
+                'preview.items': 'items',
+                'preview.files_count': 'files',
+                'preview.no_files': 'No files',
+                'preview.transfer_selected': 'Transfer Selected',
+                'preview.transferring': '⏳ Transferring...',
+                'preview.transfer_all': 'Transfer All',
+                'preview.transfer_all_title': 'Use legacy full transfer (requires expanding all directories first)',
+                'preview.cancel': 'Cancel',
+                // Batch preview
+                'batch_preview.title': 'Batch Task Preview',
+                'batch_preview.link_count': 'Link Count:',
+                'batch_preview.file_total': 'Total Files:',
+                'batch_preview.results': 'Parse Results:',
+                'batch_preview.file_count': 'files',
+                'batch_preview.start': 'Start Batch Transfer',
+                'batch_preview.cancel': 'Cancel',
+                // Overwrite confirm
+                'overwrite.title': 'Confirm Overwrite',
+                'overwrite.existing': 'Existing files:',
+                'overwrite.confirm': 'Confirm Overwrite',
+                'overwrite.cancel': 'Cancel',
+                // Progress
+                'progress.title': 'Task Progress',
+                'progress.pause': 'Pause',
+                'progress.resume': 'Resume',
+                'progress.checkpoint': 'Resume from Checkpoint',
+                'progress.restart': 'Restart',
+                'progress.scan_progress': '📂 Scan Progress',
+                'progress.dirs_files': 'dirs, ',
+                'progress.current': 'Current:',
+                'progress.api_requests': 'API requests',
+                'progress.transfer_progress': '📦 Transfer Progress:',
+                'progress.transfer_done': '✅ Transfer Complete',
+                'progress.progress': 'Progress:',
+                'progress.speed_label': 'Speed:',
+                'progress.speed_unit': 'files/sec',
+                'progress.elapsed_label': 'Elapsed:',
+                'progress.failed_label': 'Failed:',
+                'progress.batch_label': 'Batch:',
+                'progress.checkpoint_tip': '💡 Checkpoint detected. Restarting will continue from where it left off (already transferred files will be skipped)',
+                'progress.failed_files': 'Failed files:',
+                'progress.log_title': 'Execution Log',
+                'progress.expand': 'Expand ▼',
+                'progress.collapse': 'Collapse ▲',
+                'progress.export': 'Export Log',
+                // Log messages
+                'log.started': 'Pipeline transfer started, surl={surl}',
+                'log.dir_exists': 'Target directory already exists: {path}',
+                'log.target_dir': 'Target directory: {path}',
+                'log.checkpoint': 'Checkpoint resume: {count} files already transferred',
+                'log.validating_cookie': 'Validating cookie...',
+                'log.cookie_expired': 'Cookie expired: {error}. Please re-set cookie and retry',
+                'log.cookie_valid': 'Cookie valid, user: {user}',
+                'log.pipeline_start': 'Pipeline started: transfer every {batch_size} files collected',
+                'log.collect_failed': 'Collection failed (batch {batch}): {error}',
+                'log.batch_info': '[Pipeline] Batch {batch}: {total} files, {skipped} skipped, {remaining} pending',
+                'log.batch_rate_limited': 'Batch {batch} rate limited (errno={errno}), checkpoint saved, stopping',
+                'log.batch_cookie_expired': 'Batch {batch} failed: Cookie expired (errno={errno}), re-set cookie and restart',
+                'log.batch_errno2': 'Batch {batch} errno=2, transferring one by one',
+                'log.batch_failed': 'Batch {batch} failed: {error} (errno={errno})',
+                'log.summary_title': '📊 Transfer Summary:',
+                'log.summary_planned': '  Planned: {count} files',
+                'log.summary_success': '  Succeeded: {count}',
+                'log.summary_skipped': '  Skipped (already transferred): {count}',
+                'log.summary_failed': '  Failed: {count}',
+                'log.summary_elapsed': '  Elapsed: {seconds}s',
+                'log.transfer_error': 'Transfer error: {error}',
+                'log.paused': 'Task paused',
+                'log.resumed': 'Task resumed',
+                // Current action messages
+                'progress.action.creating_dir': 'Creating target directory...',
+                'progress.action.scanning': 'Scanning directory{dir}... Scanned {dirs} directories, found {files} files, {requests} API requests',
+                'progress.action.transferring': 'Transferring: {completed}/{total} ({percent}%), speed {speed} files/sec, batch {batch}/{batches}',
+                'progress.action.completed': 'Transfer completed: {files} files',
+                'progress.action.error': 'Transfer failed: {error}',
+                'progress.action.status': 'Status: {phase}',
+                // Default paths
+                'default.target_path': '/my_resources/labubu',
+                // History
+                'history.title': 'History Tasks',
+                'history.clear_confirm': 'Clear all records?',
+                'history.clear': 'Clear All',
+                'history.empty': 'No history tasks',
+                'history.task_id': 'Task ID',
+                'history.share_link': 'Share Link',
+                'history.target_path': 'Target Path',
+                'history.status': 'Status',
+                'history.progress': 'Progress',
+                'history.created_at': 'Created At',
+                // Status text
+                'status.pending': 'Pending',
+                'status.ready': 'Ready',
+                'status.running': 'Running',
+                'status.paused': 'Paused',
+                'status.completed': 'Completed',
+                'status.error': 'Failed',
+                'status.waiting_confirm': 'Awaiting Confirm',
+                // Tour
+                'tour.welcome_title': 'Welcome to Baidu Pan Batch Transfer Tool!',
+                'tour.welcome_content': 'This tool helps you batch transfer shared files from Baidu Pan with one click.',
+                'tour.step1_title': 'Step 1: Set Cookie',
+                'tour.step1_content': 'First, you need to set your Baidu Pan Cookie. Click "How to get Cookie?" for detailed steps.',
+                'tour.step2_title': 'Step 2: Choose Mode',
+                'tour.step2_content': 'You can choose "Single Link" or "Batch Links" mode. Batch mode supports processing multiple share links at once.',
+                'tour.step3_title': 'Step 3: Start Transfer',
+                'tour.step3_content': 'Enter the share link and target path, click parse to start transfer. Supports pause, resume and log export.',
+                'tour.step4_title': 'Keyboard Shortcuts',
+                'tour.step4_content': '• Ctrl+V: Paste Cookie or link\n• Enter: Confirm input\n• Esc: Close dialog',
+                'tour.prev': 'Previous',
+                'tour.next': 'Next',
+                'tour.start': 'Get Started',
+                'tour.help_title': 'Help & Shortcuts',
+                // Alert messages
+                'alert.parse_failed': 'Parse failed: ',
+                'alert.please_parse_first': 'Please parse the share link first',
+                'alert.task_expired': 'Task expired (server restarted), please re-parse the share link',
+                'alert.start_failed': 'Start failed: ',
+                'alert.restart_failed': 'Restart failed: ',
+                'alert.select_files_first': 'Please select files to transfer first',
+                'alert.transfer_failed': 'Transfer failed: ',
+                'alert.export_failed': 'Export failed: ',
+                'alert.cleared': 'Cleared',
+                'alert.clear_failed': 'Clear failed: ',
+                'alert.cookie_invalid': 'Cookie invalid',
+                'alert.validate_failed': 'Validation failed: ',
+                'alert.code_failed': 'Failed to get code, please refresh and try again',
+                'alert.expand_dir_failed': 'Failed to expand directory: ',
+                'alert.server_non_json': 'Server returned non-JSON response (HTTP ',
+                'alert.need_captcha': 'Verification Required',
+                'alert.captcha_steps': 'Steps:',
+                'alert.captcha_step1': '1. Click the link below to open in browser',
+                'alert.captcha_step2': '2. Complete the verification',
+                'alert.captcha_step3': '3. Return to this page and re-parse',
+                'alert.captcha_link': 'Link:',
+                'alert.rate_limit': 'Too Many Requests',
+                'alert.rate_limit_detail': 'System has retried multiple times, but Baidu is still rate limiting.',
+                'alert.rate_limit_solution': 'Solutions:',
+                'alert.rate_limit_wait': '1. Wait 3-5 minutes and try again',
+                'alert.rate_limit_refresh': '2. Or refresh the page to re-acquire Cookie',
+                'alert.rate_limit_tip': 'Tip: The system automatically controls request frequency, normally this won\'t trigger rate limiting.',
+                'alert.transfer_failed_read': 'Transfer failed: Unable to read server response',
+                // Format
+                'format.seconds': 's',
+                'format.minutes': 'm',
+            }
+        };
+
         function app() {
             return {
+                // i18n
+                lang: localStorage.getItem('lang') || 'zh',
+                t(key) {
+                    return (i18n[this.lang] && i18n[this.lang][key]) || (i18n['zh'] && i18n['zh'][key]) || key;
+                },
+                setLang(l) {
+                    this.lang = l;
+                    localStorage.setItem('lang', l);
+                    document.title = this.t('app.title');
+                },
                 // 模式
                 mode: 'single',
                 darkMode: localStorage.getItem('darkMode') === 'true',
                 showStats: false,
+                appVersion: '',
+                debugMode: false,
                 
                 // Cookie 相关
                 cookie: localStorage.getItem('baidu_cookie') || '',
@@ -941,7 +1488,7 @@
                 // 单个链接相关
                 shareLink: 'https://pan.baidu.com/share/init?surl=olaXLDSB7JEMjQduvYT33A&pwd=ksq2',
                 sharePwd: 'ksq2',
-                targetPath: '/我的资源/labubu2',
+                targetPath: '/my_resources/labubu',
                 parsing: false,
                 parseProgress: { status: '', dirs_scanned: 0, files_found: 0 },
                 parseProgressTimer: null,
@@ -1004,22 +1551,64 @@
                 },
                 
                 // 状态文本
-                statusText: {
-                    'pending': '待处理',
-                    'ready': '就绪',
-                    'running': '执行中',
-                    'paused': '已暂停',
-                    'completed': '已完成',
-                    'error': '失败',
-                    'waiting_confirm': '等待确认'
+                get statusText() {
+                    return {
+                        'pending': this.t('status.pending'),
+                        'ready': this.t('status.ready'),
+                        'running': this.t('status.running'),
+                        'paused': this.t('status.paused'),
+                        'completed': this.t('status.completed'),
+                        'error': this.t('status.error'),
+                        'waiting_confirm': this.t('status.waiting_confirm')
+                    };
+                },
+                
+                // 当前操作描述（前端构造，支持 i18n）
+                get currentActionText() {
+                    const p = this.progress;
+                    if (!p || !p.phase) return '';
+                    
+                    const dir = p.current_dir ? ` → ${p.current_dir}` : '';
+                    const total = p.total || p.files_found || 0;
+                    const completed = p.completed || 0;
+                    const percent = total > 0 ? (completed / total * 100).toFixed(1) : '0';
+                    
+                    switch (p.phase) {
+                        case 'collecting':
+                            return this.t('progress.action.scanning')
+                                .replace('{dir}', dir)
+                                .replace('{dirs}', p.dirs_scanned || 0)
+                                .replace('{files}', p.files_found || 0)
+                                .replace('{requests}', p.api_requests || 0);
+                        case 'transferring':
+                            return this.t('progress.action.transferring')
+                                .replace('{completed}', completed)
+                                .replace('{total}', total)
+                                .replace('{percent}', percent)
+                                .replace('{speed}', p.speed || 0)
+                                .replace('{batch}', p.current_batch || 0)
+                                .replace('{batches}', p.total_batches || 0);
+                        case 'completed':
+                            return this.t('progress.action.completed')
+                                .replace('{files}', p.files_found || 0);
+                        case 'error':
+                            return this.t('progress.action.error')
+                                .replace('{error}', p.error || this.t('status.error'));
+                        default:
+                            return this.t('progress.action.status')
+                                .replace('{phase}', p.phase);
+                    }
                 },
                 
                 init() {
+                    document.title = this.t('app.title');
                     if (this.cookie) {
                         this.validateCookie();
                     }
                     this.loadHistory();
                     this.startListening();
+                    // 获取版本号
+                    fetch('/api/version').then(r => r.json()).then(d => { this.appVersion = d.version; }).catch(() => {});
                 },
                 
                 startListening() {
@@ -1075,7 +1664,7 @@
                         ta.remove();
                     } catch (e) {
                         this.bmShowCode = true;
-                        this.bmError = '获取代码失败，请刷新页面重试';
+                        this.bmError = this.t('alert.code_failed');
                     }
                 },
                 
@@ -1093,10 +1682,10 @@
                 },
                 
                 formatTime(seconds) {
-                    if (!seconds) return '0秒';
+                    if (!seconds) return '0' + this.t('format.seconds');
                     const mins = Math.floor(seconds / 60);
                     const secs = Math.floor(seconds % 60);
-                    return mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+                    return mins > 0 ? `${mins}${this.t('format.minutes')}${secs}${this.t('format.seconds')}` : `${secs}${this.t('format.seconds')}`;
                 },
                 
                 formatFileSize(bytes) {
@@ -1109,6 +1698,90 @@
                         i++;
                     }
                     return size.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+                },
+                
+                // 渲染日志条目（i18n key + params 优先，回退到 translateLog）
+                renderLog(log) {
+                    // 新格式：{key, params} — 用 t() 翻译
+                    if (log && log.key) {
+                        let text = this.t(log.key);
+                        const params = log.params || {};
+                        for (const [k, v] of Object.entries(params)) {
+                            text = text.replace('{' + k + '}', v);
+                        }
+                        return text;
+                    }
+                    // 旧格式：{message} 或纯字符串 — 回退到正则翻译
+                    return this.translateLog(log && log.message ? log.message : log);
+                },
+                
+                // 翻译服务器日志消息（旧格式兼容）
+                translateLog(message) {
+                    if (!message || this.lang !== 'en') return message;
+                    
+                    // 常见日志模式翻译
+                    const patterns = [
+                        // 转存相关
+                        [/开始转存[:：]\s*(\d+)\s*个文件/, 'Starting transfer: $1 files'],
+                        [/成功转存\s*(\d+)\s*个文件/, 'Successfully transferred $1 files'],
+                        [/转存成功\s*(\d+)\s*文件/, 'Transfer succeeded: $1 files'],
+                        [/转存失败/, 'Transfer failed'],
+                        [/转存完成/, 'Transfer completed'],
+                        [/正在转存/, 'Transferring'],
+                        // 目录相关
+                        [/创建目标子目录失败/, 'Failed to create target subdirectory'],
+                        [/创建目标目录失败/, 'Failed to create target directory'],
+                        [/保留目录结构/, 'Preserving directory structure'],
+                        [/分组完成/, 'Grouping completed'],
+                        // 批次相关
+                        [/第(\d+)批/, 'Batch $1'],
+                        [/批次/, 'batch'],
+                        // 文件相关
+                        [/单文件失败/, 'Single file failed'],
+                        [/全部已转存/, 'all already transferred'],
+                        [/跳过/, 'skipped'],
+                        // 断点相关
+                        [/从DB加载断点/, 'Loading checkpoint from DB'],
+                        [/保存成功/, 'Saved successfully'],
+                        [/保存到DB失败/, 'Failed to save to DB'],
+                        // Cookie相关
+                        [/Cookie 中缺少 STOKEN/, 'Cookie missing STOKEN'],
+                        [/Cookie 无效/, 'Invalid cookie'],
+                        // 通用
+                        [/正在扫描目录/, 'Scanning directory'],
+                        [/已扫描\s*(\d+)\s*个目录/, 'Scanned $1 directories'],
+                        [/找到\s*(\d+)\s*个文件/, 'Found $1 files'],
+                        [/来自\s*(\d+)\s*个直接文件\s*\+\s*(\d+)\s*个目录展开/, 'from $1 direct files + $2 directories expanded'],
+                        [/(\d+)\s*个已转存文件/, '$1 transferred files'],
+                        [/(\d+)\s*个文件/, '$1 files'],
+                        [/(\d+)\s*个目录/, '$1 directories'],
+                        [/次API请求/, 'API requests'],
+                        [/未知错误/, 'Unknown error'],
+                        [/递归展开目录/, 'Recursively expanding directory'],
+                        [/收集到/, 'collected'],
+                        [/选中\s*(\d+)\s*个目录/, 'Selected $1 directories'],
+                        [/公共前缀/, 'common prefix'],
+                        [/目标子目录已存在/, 'Target subdirectory already exists'],
+                        [/目标目录已存在，跳过创建/, 'Target directory exists, skipping creation'],
+                        [/到\s+(\S+)/, ' to $1'],
+                        [/写入任务日志到DB失败/, 'Failed to write task log to DB'],
+                        [/保存到DB失败/, 'Failed to save to DB'],
+                        [/清除断点失败/, 'Failed to clear checkpoint'],
+                        [/更新任务DB失败/, 'Failed to update task DB'],
+                        [/转存\s+(\d+)/, 'Transfer $1'],
+                        [/目录\s+(\S+)/, 'Directory $1'],
+                        [/展开/, 'expanded'],
+                        [/失败/, 'failed'],
+                        [/成功/, 'success'],
+                        [/错误/, 'error'],
+                        [/警告/, 'warning'],
+                    ];
+                    
+                    let translated = message;
+                    for (const [pattern, replacement] of patterns) {
+                        translated = translated.replace(pattern, replacement);
+                    }
+                    return translated;
                 },
                 
                 async validateCookie() {
@@ -1132,11 +1805,11 @@
                         } else {
                             this.cookieValid = false;
                             this.cookieStatus = 'invalid';
-                            this.cookieError = data.error || 'Cookie无效';
+                            this.cookieError = data.error || this.t('alert.cookie_invalid');
                         }
                     } catch (e) {
                         this.cookieStatus = 'invalid';
-                        this.cookieError = '验证失败：' + e.message;
+                        this.cookieError = this.t('alert.validate_failed') + e.message;
                     } finally {
                         this.validating = false;
                     }
@@ -1173,25 +1846,25 @@
                             if (err.error_code === -12) {
                                 const shareLink = err.share_link || this.shareLink;
                                 throw new Error(
-                                    `需要验证码\n\n` +
-                                    `解决步骤：\n` +
-                                    `1. 点击下方链接在浏览器中打开\n` +
-                                    `2. 完成验证码验证\n` +
-                                    `3. 返回此页面重新解析\n\n` +
-                                    `链接：${shareLink}`
+                                    `${this.t('alert.need_captcha')}\n\n` +
+                                    `${this.t('alert.captcha_steps')}\n` +
+                                    `${this.t('alert.captcha_step1')}\n` +
+                                    `${this.t('alert.captcha_step2')}\n` +
+                                    `${this.t('alert.captcha_step3')}\n\n` +
+                                    `${this.t('alert.captcha_link')}${shareLink}`
                                 );
                             }
                             if (err.error_code === -62) {
                                 throw new Error(
-                                    `请求过于频繁\n\n` +
-                                    `系统已自动重试多次，但百度仍在限流。\n` +
-                                    `解决方法：\n` +
-                                    `1. 等待 3-5 分钟后再试\n` +
-                                    `2. 或刷新页面重新获取Cookie\n\n` +
-                                    `提示：系统会自动控制请求频率，正常情况下不会触发限流。`
+                                    `${this.t('alert.rate_limit')}\n\n` +
+                                    `${this.t('alert.rate_limit_detail')}\n` +
+                                    `${this.t('alert.rate_limit_solution')}\n` +
+                                    `${this.t('alert.rate_limit_wait')}\n` +
+                                    `${this.t('alert.rate_limit_refresh')}\n\n` +
+                                    `${this.t('alert.rate_limit_tip')}`
                                 );
                             }
-                            throw new Error(err.detail || '解析失败');
+                            throw new Error(err.detail || this.t('alert.parse_failed'));
                         }
                         
                         const data = await resp.json();
@@ -1203,7 +1876,7 @@
                         
                         // 构建文件树
                         this.fileTree = (data.top_items || []).map(item => ({
-                            name: item.server_filename || item.path?.split('/').pop() || '未知',
+                            name: item.server_filename || item.path?.split('/').pop() || this.t('single.unknown'),
                             path: item.path,
                             isdir: parseInt(item.isdir) === 1,
                             size: item.size || 0,
@@ -1231,7 +1904,7 @@
                         this.loadHistory();
                         
                     } catch (e) {
-                        alert('解析失败：' + e.message);
+                        alert(this.t('alert.parse_failed') + e.message);
                         this.stopParseElapsedTimer();
                         this.parsing = false;
                     }
@@ -1279,7 +1952,7 @@
                                 clearInterval(this.parseProgressTimer);
                                 this.parseProgressTimer = null;
                                 this.stopParseElapsedTimer();
-                                alert('解析失败：' + (data.error || '未知错误'));
+                                alert(this.t('alert.parse_failed') + (data.error || ''));
                                 this.parsing = false;
                             }
                         } catch (e) {
@@ -1319,7 +1992,7 @@
                         
                         if (!resp.ok) {
                             const err = await resp.json();
-                            throw new Error(err.detail || '解析失败');
+                            throw new Error(err.detail || this.t('alert.parse_failed'));
                         }
                         
                         const data = await resp.json();
@@ -1327,7 +2000,7 @@
                         this.currentBatch = data.batch_id;
                         
                     } catch (e) {
-                        alert('解析失败：' + e.message);
+                        alert(this.t('alert.parse_failed') + e.message);
                     } finally {
                         this.parsing = false;
                     }
@@ -1336,7 +2009,7 @@
                 async startTransfer(overwrite) {
                     console.log('[startTransfer] called, currentTask:', this.currentTask, 'overwrite:', overwrite);
                     if (!this.currentTask) {
-                        alert('请先解析分享链接');
+                        alert(this.t('alert.please_parse_first'));
                         return;
                     }
                     // 防止重复点击：如果已经在转存中，直接忽略
@@ -1364,7 +2037,7 @@
                             data = await resp.json();
                         } catch (parseErr) {
                             const text = await resp.text().catch(() => '');
-                            throw new Error(`服务器返回非JSON响应 (HTTP ${resp.status}): ${text.slice(0, 200)}`);
+                            throw new Error(`${this.t('alert.server_non_json')}${resp.status}): ${text.slice(0, 200)}`);
                         }
                         console.log('[startTransfer] resp data:', data);
                         
@@ -1375,11 +2048,11 @@
                                 this.taskInfo = null;
                                 localStorage.removeItem('currentTask');
                                 localStorage.removeItem('taskInfo');
-                                throw new Error('任务已过期（服务器重启），请重新解析分享链接');
+                                throw new Error(this.t('alert.task_expired'));
                             }
                             const detail = typeof data.detail === 'string' ? data.detail :
                                           Array.isArray(data.detail) ? data.detail.map(e => e.msg || JSON.stringify(e)).join('; ') :
-                                          (data.detail ? JSON.stringify(data.detail) : '启动失败');
+                                          (data.detail ? JSON.stringify(data.detail) : this.t('alert.start_failed'));
                             throw new Error(detail);
                         }
                         
@@ -1402,7 +2075,7 @@
                     } catch (e) {
                         console.error('[startTransfer] error:', e);
                         this.transferring = false;  // 只在错误时重置
-                        alert('启动失败：' + e.message);
+                        alert(this.t('alert.start_failed') + e.message);
                     }
                 },
                 
@@ -1422,14 +2095,14 @@
                             const err = await resp.json();
                             const detail = typeof err.detail === 'string' ? err.detail :
                                           Array.isArray(err.detail) ? err.detail.map(e => e.msg || JSON.stringify(e)).join('; ') :
-                                          (err.detail ? JSON.stringify(err.detail) : '启动失败');
+                                          (err.detail ? JSON.stringify(err.detail) : this.t('alert.start_failed'));
                             throw new Error(detail);
                         }
                         
                         this.startProgressPolling();
                         
                     } catch (e) {
-                        alert('启动失败：' + e.message);
+                        alert(this.t('alert.start_failed') + e.message);
                     } finally {
                         this.transferring = false;
                     }
@@ -1519,7 +2192,7 @@
                         
                         if (!resp.ok) {
                             const data = await resp.json();
-                            throw new Error(data.detail || '重启失败');
+                            throw new Error(data.detail || this.t('alert.restart_failed'));
                         }
                         
                         this.progress.status = 'running';
@@ -1533,7 +2206,7 @@
                         });
                     } catch (e) {
                         this.transferring = false;
-                        alert('重启失败：' + e.message);
+                        alert(this.t('alert.restart_failed') + e.message);
                     }
                 },
                 
@@ -1595,14 +2268,14 @@
                         
                         if (!resp.ok) {
                             const err = await resp.json();
-                            throw new Error(err.detail || '展开失败');
+                            throw new Error(err.detail || this.t('alert.expand_dir_failed'));
                         }
                         
                         const data = await resp.json();
                         
                         // 构建子项
                         item.children = (data.items || []).map(child => ({
-                            name: child.server_filename || child.path?.split('/').pop() || '未知',
+                            name: child.server_filename || child.path?.split('/').pop() || this.t('single.unknown'),
                             path: child.path,
                             isdir: parseInt(child.isdir) === 1,
                             size: child.size || 0,
@@ -1618,7 +2291,7 @@
                         
                     } catch (e) {
                         console.error('展开目录失败:', e);
-                        alert('展开目录失败：' + e.message);
+                        alert(this.t('alert.expand_dir_failed') + e.message);
                         delete this.treeExpanded[path];
                     } finally {
                         delete this.treeLoading[path];
@@ -1769,7 +2442,7 @@
                     collectItems(this.fileTree);
                     
                     if (items.length === 0) {
-                        alert('请先选择要转存的文件');
+                        alert(this.t('alert.select_files_first'));
                         return;
                     }
                     
@@ -1794,20 +2467,20 @@
                         try {
                             respText = await resp.text();
                         } catch (textErr) {
-                            throw new Error('转存失败：无法读取服务器响应');
+                            throw new Error(this.t('alert.transfer_failed_read'));
                         }
                         
                         let data;
                         try {
                             data = JSON.parse(respText);
                         } catch (parseErr) {
-                            throw new Error(`服务器返回非JSON响应 (HTTP ${resp.status}): ${respText.slice(0, 200)}`);
+                            throw new Error(`${this.t('alert.server_non_json')}${resp.status}): ${respText.slice(0, 200)}`);
                         }
                         
                         if (!resp.ok) {
                             const detail = typeof data.detail === 'string' ? data.detail :
                                           Array.isArray(data.detail) ? data.detail.map(e => e.msg || JSON.stringify(e)).join('; ') :
-                                          (data.detail ? JSON.stringify(data.detail) : '转存失败');
+                                          (data.detail ? JSON.stringify(data.detail) : this.t('alert.transfer_failed'));
                             throw new Error(detail);
                         }
                         
@@ -1816,7 +2489,7 @@
                         this.loadHistory();
                         
                     } catch (e) {
-                        alert('转存失败：' + e.message);
+                        alert(this.t('alert.transfer_failed') + e.message);
                     } finally {
                         this.transferring = false;
                     }
@@ -1838,7 +2511,7 @@
                         a.click();
                         URL.revokeObjectURL(url);
                     } catch (e) {
-                        alert('导出失败：' + e.message);
+                        alert(this.t('alert.export_failed') + e.message);
                     }
                 },
                 
@@ -1858,9 +2531,22 @@
                         this.historyTasks = [];
                         this.currentTask = null;
                         this.progress = { status: 'idle', total: 0, completed: 0, failed: 0, failed_files: [], logs: [] };
-                        alert(data.message || '已清空');
+                        alert(data.message || this.t('alert.cleared'));
                     } catch (e) {
-                        alert('清空失败：' + e.message);
+                        alert(this.t('alert.clear_failed') + e.message);
+                    }
+                },
+                
+                async toggleDebug() {
+                    this.debugMode = !this.debugMode;
+                    try {
+                        await fetch('/api/debug', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ enabled: this.debugMode })
+                        });
+                    } catch (e) {
+                        console.error('切换 Debug 模式失败:', e);
                     }
                 },
                 
@@ -1876,33 +2562,15 @@
                 // 新手引导
                 showTour: !localStorage.getItem('tourCompleted'),
                 tourStep: 0,
-                tourSteps: [
-                    {
-                        title: '欢迎使用百度网盘批量转存工具！',
-                        content: '这个工具可以帮助你一键批量转存百度网盘的共享文件。',
-                        icon: '👋'
-                    },
-                    {
-                        title: '第一步：设置Cookie',
-                        content: '首先需要设置百度网盘的Cookie。点击"如何获取Cookie？"查看详细步骤。',
-                        icon: '🔑'
-                    },
-                    {
-                        title: '第二步：选择模式',
-                        content: '可以选择"单个链接"或"批量链接"模式。批量模式支持一次处理多个分享链接。',
-                        icon: '📋'
-                    },
-                    {
-                        title: '第三步：开始转存',
-                        content: '输入分享链接和目标路径，点击解析后即可开始转存。支持暂停、继续和导出日志。',
-                        icon: '🚀'
-                    },
-                    {
-                        title: '快捷键提示',
-                        content: '• Ctrl+V：粘贴Cookie或链接\n• Enter：确认输入\n• Esc：关闭弹窗',
-                        icon: '⌨️'
-                    }
-                ],
+                get tourSteps() {
+                    return [
+                        { title: this.t('tour.welcome_title'), content: this.t('tour.welcome_content'), icon: '👋' },
+                        { title: this.t('tour.step1_title'), content: this.t('tour.step1_content'), icon: '🔑' },
+                        { title: this.t('tour.step2_title'), content: this.t('tour.step2_content'), icon: '📋' },
+                        { title: this.t('tour.step3_title'), content: this.t('tour.step3_content'), icon: '🚀' },
+                        { title: this.t('tour.step4_title'), content: this.t('tour.step4_content'), icon: '⌨️' }
+                    ];
+                },
                 
                 nextTourStep() {
                     if (this.tourStep < this.tourSteps.length - 1) {
@@ -1950,14 +2618,14 @@
                     x-show="tourStep > 0"
                     @click="tourStep--"
                     class="px-4 py-2 text-gray-600 hover:text-gray-800"
+                    x-text="t('tour.prev')"
                 >
-                    上一步
                 </button>
                 <div x-show="tourStep === 0"></div>
                 <button 
                     @click="nextTourStep()"
                     class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                    x-text="tourStep === tourSteps.length - 1 ? '开始使用' : '下一步'"
+                    x-text="tourStep === tourSteps.length - 1 ? t('tour.start') : t('tour.next')"
                 ></button>
             </div>
         </div>
@@ -1968,7 +2636,7 @@
         <button 
             @click="resetTour()"
             class="bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 transition-all"
-            title="查看帮助和快捷键"
+            :title="t('tour.help_title')"
         >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
