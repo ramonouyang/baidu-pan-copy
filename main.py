@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.12"  # DTS-2026-008~015: 性能优化+Debug开关+转存总结+视觉优化
+__version__ = "1.1.13"  # DTS-2026-008~015: 性能优化+Debug开关+转存总结+视觉优化
 import json
 import time
 import sqlite3
