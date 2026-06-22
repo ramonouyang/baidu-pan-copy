@@ -963,6 +963,7 @@
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.status')">状态</th>
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.progress')">进度</th>
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.created_at')">创建时间</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -984,6 +985,12 @@
                                 </td>
                                 <td class="px-4 py-2 text-sm" x-text="`${task.completed_files}/${task.total_files}`"></td>
                                 <td class="px-4 py-2 text-sm" x-text="new Date(task.created_at).toLocaleString()"></td>
+                                <td class="px-4 py-2 text-sm">
+                                    <button @click.stop="showTaskSummary(task.id)" 
+                                            class="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors">
+                                        查看
+                                    </button>
+                                </td>
                             </tr>
                         </template>
                     </tbody>
@@ -2147,6 +2154,11 @@
                                 this.progressTimer = null;
                                 this.transferring = false;  // 转存结束，重置按钮状态
                                 this.loadHistory();
+                                
+                                // 自动弹出转存总结卡片
+                                if (data.status === 'completed' && this.currentTask) {
+                                    this.showTaskSummary(this.currentTask);
+                                }
                             }
                         } catch (e) {
                             console.error('获取进度失败:', e);
