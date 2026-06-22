@@ -185,7 +185,7 @@
                     <h1 class="text-3xl font-bold text-gray-800" x-text="t('app.title')">百度网盘批量转存工具</h1>
                     <p class="text-gray-600 mt-2 text-sm" x-text="t('app.subtitle')">支持公开链接和好友分享，一键批量转存</p>
                 </div>
-                <div x-show="appVersion" x-cloak class="text-xs text-gray-400 mt-1">v<span x-text="appVersion"></span></div>
+                <div x-show="appVersion" x-cloak class="text-xs text-gray-400 dark:text-gray-300 mt-1">v<span x-text="appVersion"></span></div>
             </div>
             <div class="flex items-center gap-4">
                 <!-- 语言切换 -->
@@ -316,7 +316,7 @@
                                 x-text="_bmCode || t('connect.bm_loading')"
                                 x-init="$watch('bmShowCode', v => { if(v) { $nextTick(() => { $refs.bmCodeArea && $refs.bmCodeArea.select(); }); } })"
                             ></textarea>
-                            <p class="text-xs text-gray-400 mt-1" x-text="t('connect.bm_select_tip')"></p>
+                            <p class="text-xs text-gray-400 dark:text-gray-300 mt-1" x-text="t('connect.bm_select_tip')"></p>
                         </div>
                     </div>
                 </div>
