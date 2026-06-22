@@ -269,7 +269,10 @@ class ConfirmRequest(BaseModel):
 # 读取HTML文件
 def get_html():
     html_path = Path(__file__).parent / "templates" / "index.html"
-    return html_path.read_text(encoding="utf-8")
+    html = html_path.read_text(encoding="utf-8")
+    # 注入版本号，避免前端异步加载延迟
+    html = html.replace('__VERSION__', __version__)
+    return html
 
 
 # ============ API 路由 ============

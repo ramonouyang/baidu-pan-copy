@@ -1518,7 +1518,7 @@
                 mode: 'single',
                 darkMode: localStorage.getItem('darkMode') === 'true',
                 showStats: false,
-                appVersion: '',
+                appVersion: '__VERSION__',
                 debugMode: false,
                 
                 // 转存总结弹窗
@@ -1662,8 +1662,7 @@
                     }
                     this.loadHistory();
                     this.startListening();
-                    // 获取版本号
-                    fetch('/api/version').then(r => r.json()).then(d => { this.appVersion = d.version; }).catch(() => {});
+                    // 版本号已由服务端注入
                 },
                 
                 startListening() {
