@@ -1405,7 +1405,7 @@ async def get_task_progress(task_id: str):
                 pass
         
         # 转存阶段的进度：total = files_found, completed 由转存结果决定
-        total = tp.get("total", files_found) if phase in ("transferring", "completed") else 0
+        total = tp.get("total", files_found) if phase in ("pipeline", "transferring", "completed") else 0
         completed = tp.get("completed", files_found if status == "completed" else 0)
         
         # 获取内存日志（最近50条）
