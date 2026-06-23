@@ -997,7 +997,7 @@
                     </thead>
                     <tbody>
                         <template x-for="task in historyTasks" :key="task.id">
-                            <tr class="border-b hover:bg-gray-50 cursor-pointer" @click="showTaskSummary(task.id)">
+                            <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2 text-sm" x-text="task.id"></td>
                                 <td class="px-4 py-2 text-sm max-w-xs truncate" x-text="task.share_link"></td>
                                 <td class="px-4 py-2 text-sm" x-text="task.target_path"></td>
