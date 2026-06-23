@@ -950,6 +950,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
     task["transfer_start_time"] = datetime.now().isoformat()
     task["progress"] = {"phase": "collecting", "dirs_scanned": 0, "files_found": 0, "api_requests": 0}
     task["error"] = ""  # 清除之前的错误信息
+    _update_task_db(task_id, "running", 0, 0, 0)  # 同步状态到 DB
     
     # 懒加载模式：流水线收集+转存（收集一批→转存一批→再收集下一批）
     if task.get("mode") == "lazy":
@@ -1325,6 +1326,7 @@ async def pause_task(task_id: str):
         manager.pause()
     
     task["status"] = "paused"
+    _update_task_db(task_id, "paused", 0, 0, 0)  # 同步状态到 DB
     add_task_log(task_id, "log.paused", "INFO")
     return {"message": "任务已暂停", "task_id": task_id}
 
@@ -1345,6 +1347,7 @@ async def resume_task(task_id: str):
         manager.resume()
     
     task["status"] = "running"
+    _update_task_db(task_id, "running", 0, 0, 0)  # 同步状态到 DB
     add_task_log(task_id, "log.resumed", "INFO")
     return {"message": "任务已恢复", "task_id": task_id}
 
