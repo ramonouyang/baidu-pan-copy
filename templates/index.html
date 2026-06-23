@@ -3301,7 +3301,7 @@
                             await this.loadHistory();
                             // 跳转到任务进度页面
                             this.currentTask = taskId;
-                            this.startPolling(taskId);
+                            this.startProgressPolling();
                         } else {
                             alert(this.t('history.recover_failed').replace('{error}', data.detail || '未知错误'));
                         }
@@ -3450,7 +3450,7 @@
                             alert(this.t('history.recover_success').replace('{message}', data.message));
                             await this.loadHistory();
                             this.currentTask = taskId;
-                            this.startPolling(taskId);
+                            this.startProgressPolling();
                             if (this.duplicateResolve) this.duplicateResolve('recover');
                         } else {
                             alert(this.t('history.recover_failed').replace('{error}', data.detail || '未知错误'));
