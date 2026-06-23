@@ -85,8 +85,8 @@ class RateLimiter:
     """
     
     # 请求预算：每 N 秒最多 M 次请求
-    BUDGET_WINDOW = 300    # 5 分钟滑动窗口
-    BUDGET_LIMIT = 120     # DTS-2026-009: 每窗口最多 120 次请求（原 80，提升 50%）
+    BUDGET_WINDOW = 180    # 3 分钟滑动窗口（更快恢复，配合 300 限制 = 1.67 QPS）
+    BUDGET_LIMIT = 300     # 每窗口最多 300 次请求（匹配 1.5 QPS，原 120 太保守导致频繁等待）
     
     def __init__(self, rate: float = 1.5, burst: int = 2):
         """

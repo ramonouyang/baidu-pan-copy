@@ -1540,15 +1540,25 @@ async def get_limiter_stats():
 # DTS-2026-014: 获取任务转存总结
 @app.get("/api/task/{task_id}/summary")
 async def get_task_summary(task_id: str):
-    """获取任务转存总结（优先从内存，否则从DB计算）"""
+    """获取任务转存总结（优先从内存，否则从 checkpoint + DB 计算）"""
     # 先从活跃任务获取
     if task_id in active_tasks:
         task = active_tasks[task_id]
         summary = task.get("transfer_summary")
         if summary:
             return summary
+        # 运行中任务：从内存状态构造实时总结
+        elapsed = round(time.time() - task.get("start_time", time.time()), 1) if "start_time" in task else 0
+        return {
+            "total_planned": task.get("total_files", 0),
+            "success_count": task.get("completed_files", 0),
+            "failed_count": task.get("failed_files", 0),
+            "skipped_count": task.get("skipped_files", 0),
+            "elapsed": elapsed,
+            "status": "running",
+        }
     
-    # 从 DB 获取基本信息
+    # 从 DB 获取
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
@@ -1558,7 +1568,6 @@ async def get_task_summary(task_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="任务不存在")
     
-    # 从 DB 字段构造总结
     status = row[3]
     total_files = row[4] or 0
     completed_files = row[5] or 0
@@ -1566,11 +1575,44 @@ async def get_task_summary(task_id: str):
     created_at = row[7]
     updated_at = row[8] if len(row) > 8 else None
     
+    # 尝试从 checkpoint 获取实际进度（运行中/暂停任务）
+    checkpoint_transferred = 0
+    checkpoint_total = 0
+    try:
+        conn2 = sqlite3.connect(DB_PATH)
+        c2 = conn2.cursor()
+        c2.execute("SELECT checkpoint, logs FROM tasks WHERE id = ?", (task_id,))
+        cp_row = c2.fetchone()
+        conn2.close()
+        if cp_row:
+            if cp_row[0]:
+                cp = json.loads(cp_row[0])
+                checkpoint_transferred = len(cp.get("transferred_fs_ids", []))
+                checkpoint_total = cp.get("total_files", 0)
+            # 从日志统计成功/失败数
+            if cp_row[1]:
+                logs = json.loads(cp_row[1])
+                for log_entry in logs:
+                    if "成功转存" in log_entry:
+                        # 提取成功数: "成功转存 N 个文件"
+                        import re as _re
+                        m = _re.search(r"成功转存\s*(\d+)", log_entry)
+                        if m:
+                            completed_files += int(m.group(1))
+    except Exception:
+        pass
+    
+    # 用 checkpoint 数据覆盖（如果 DB 字段为 0）
+    if total_files == 0 and checkpoint_total > 0:
+        total_files = checkpoint_total
+    if completed_files == 0 and checkpoint_transferred > 0:
+        completed_files = checkpoint_transferred
+    
     elapsed = 0
-    if status in ("completed", "error") and created_at and updated_at:
+    if created_at:
         try:
             start = datetime.fromisoformat(created_at)
-            end = datetime.fromisoformat(updated_at)
+            end = datetime.fromisoformat(updated_at) if updated_at and status in ("completed", "error") else datetime.now()
             elapsed = int((end - start).total_seconds())
         except:
             pass
@@ -1581,6 +1623,7 @@ async def get_task_summary(task_id: str):
         "failed_count": failed_files,
         "skipped_count": 0,
         "elapsed": elapsed,
+        "status": status,
         "dirs_scanned": 0,
         "api_requests": 0,
         "failed_files": [],
