@@ -1116,6 +1116,13 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                 fs_id = f.get("fs_id")
                                 if fs_id:
                                     transferred_fs_ids.add(fs_id)
+                            # 实时更新内存计数器
+                            task["realtime"] = {
+                                "success": completed_count + batch_success,
+                                "failed": failed_count + batch_failed,
+                                "total": files_found,
+                                "elapsed": round(time.time() - transfer_start_ts, 1),
+                            }
                         else:
                             error = transfer_result.get("error", "未知错误")
                             errno = transfer_result.get("errno", 0)
@@ -1150,6 +1157,13 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                         fname = f.get("path","").split("/")[-1]
                                         logger.warning(f"[流水线] 单文件失败: {fname} errno={sr.get('errno','?')}")
                                         add_task_log(task_id, "log.single_file_failed", "WARN", name=fname, errno=sr.get('errno', '?'))
+                                    # 单文件实时更新
+                                    task["realtime"] = {
+                                        "success": completed_count,
+                                        "failed": failed_count,
+                                        "total": files_found,
+                                        "elapsed": round(time.time() - transfer_start_ts, 1),
+                                    }
                             else:
                                 add_task_log(task_id, "log.batch_failed", "ERROR", batch=batch_num, error=error, errno=errno)
                     
@@ -1162,8 +1176,14 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     # 每批转存完保存断点
                     _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
                     
-                    # 更新进度
+                    # 实时更新内存计数器
                     elapsed = time.time() - transfer_start_ts
+                    task["realtime"] = {
+                        "success": completed_count,
+                        "failed": failed_count,
+                        "total": files_found,
+                        "elapsed": round(elapsed, 1),
+                    }
                     speed = round(completed_count / elapsed, 1) if elapsed > 0 else 0
                     task["progress"].update({
                         "completed": completed_count,
@@ -1560,18 +1580,31 @@ async def get_task_summary(task_id: str):
     # 先从活跃任务获取
     if task_id in active_tasks:
         task = active_tasks[task_id]
+        # 任务完成：返回最终总结
         summary = task.get("transfer_summary")
         if summary:
-            return summary
-        # 运行中任务：从内存状态构造实时总结
+            return {**summary, "status": "completed"}
+        # 运行中：优先返回实时计数器
+        rt = task.get("realtime")
+        if rt:
+            return {
+                "total_planned": rt.get("total", 0),
+                "success_count": rt.get("success", 0),
+                "failed_count": rt.get("failed", 0),
+                "skipped_count": 0,
+                "elapsed": rt.get("elapsed", 0),
+                "status": task.get("status", "running"),
+            }
+        # fallback: progress 字典
+        progress = task.get("progress", {})
         elapsed = round(time.time() - task.get("start_time", time.time()), 1) if "start_time" in task else 0
         return {
-            "total_planned": task.get("total_files", 0),
-            "success_count": task.get("completed_files", 0),
-            "failed_count": task.get("failed_files", 0),
-            "skipped_count": task.get("skipped_files", 0),
+            "total_planned": progress.get("files_found", 0),
+            "success_count": progress.get("completed", 0),
+            "failed_count": progress.get("failed", 0),
+            "skipped_count": 0,
             "elapsed": elapsed,
-            "status": "running",
+            "status": task.get("status", "running"),
         }
     
     # 从 DB 获取

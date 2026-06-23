@@ -798,6 +798,16 @@
                         </svg>
                         <span x-text="progress.has_checkpoint ? t('progress.checkpoint') : t('progress.restart')"></span>
                     </button>
+                    <button 
+                        x-show="currentTask"
+                        @click="showTaskSummary(currentTask)"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-violet-500 text-white rounded-lg shadow-sm hover:shadow-md hover:from-purple-600 hover:to-violet-600 active:scale-95 transition-all text-sm font-medium"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        <span x-text="t('progress.summary')">转存总结</span>
+                    </button>
                 </div>
             </h2>
             
@@ -1023,7 +1033,7 @@
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-800" x-text="t('summary.title')">📊 转存总结</h3>
-                <button @click="showSummaryModal = false" class="text-gray-400 hover:text-gray-600">
+                <button @click="showSummaryModal = false; if(_summaryTimer){clearInterval(_summaryTimer);_summaryPolling=false}" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -1059,7 +1069,7 @@
             </div>
             
             <div class="mt-6 flex justify-end">
-                <button @click="showSummaryModal = false" 
+                <button @click="showSummaryModal = false; if(_summaryTimer){clearInterval(_summaryTimer);_summaryPolling=false}" 
                         class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
                         x-text="t('summary.close')">
                     关闭
@@ -1423,6 +1433,7 @@
                 'progress.resume': 'Resume',
                 'progress.checkpoint': 'Resume from Checkpoint',
                 'progress.restart': 'Restart',
+                'progress.summary': 'Summary',
                 'progress.scan_progress': '📂 Scan Progress',
                 'progress.dirs_files': 'dirs, ',
                 'progress.current': 'Current:',
@@ -1578,6 +1589,9 @@
                 
                 // 转存总结弹窗
                 showSummaryModal: false,
+                _summaryTimer: null,
+                _summaryPolling: false,
+                _summaryTaskId: null,
                 summaryData: null,
                 summaryLoading: false,
                 
@@ -2722,13 +2736,34 @@
                     this.showSummaryModal = true;
                     this.summaryLoading = true;
                     this.summaryData = null;
+                    this._summaryTaskId = taskId;
+                    this._summaryPolling = false;
                     
+                    await this._fetchSummary(taskId);
+                    
+                    // 运行中任务：启动 3 秒轮询
+                    if (this.summaryData?.status === 'running' || this.summaryData?.status === 'ready' || this.summaryData?.status === 'paused') {
+                        this._summaryPolling = true;
+                        this._summaryTimer = setInterval(async () => {
+                            if (!this.showSummaryModal || !this._summaryPolling) {
+                                clearInterval(this._summaryTimer);
+                                return;
+                            }
+                            await this._fetchSummary(this._summaryTaskId);
+                            // 任务结束则停止轮询
+                            if (this.summaryData?.status === 'completed' || this.summaryData?.status === 'error') {
+                                this._summaryPolling = false;
+                                clearInterval(this._summaryTimer);
+                            }
+                        }, 3000);
+                    }
+                },
+                
+                async _fetchSummary(taskId) {
                     try {
                         const resp = await fetch(`/api/task/${taskId}/summary`);
                         if (resp.ok) {
                             this.summaryData = await resp.json();
-                        } else {
-                            console.error('获取总结失败:', resp.status);
                         }
                     } catch (e) {
                         console.error('获取总结异常:', e);
