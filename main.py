@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.15"  # DTS-2026-008~015: 性能优化+Debug开关+转存总结+视觉优化
+__version__ = "1.1.16"  # Debug日志过滤器+导出增强+一键复制
 import json
 import time
 import sqlite3
@@ -32,10 +32,17 @@ async def get_version():
 @app.post("/api/debug")
 async def toggle_debug(request: Request):
     """切换 debug 日志模式"""
+    global _debug_mode
     from baidu_api import set_debug_mode
     body = await request.json()
     enabled = body.get("enabled", False)
+    _debug_mode = enabled
     set_debug_mode(enabled)
+    
+    # 记录debug模式切换
+    for task_id in active_tasks:
+        add_debug_log(task_id, "log.debug_mode", enabled=enabled)
+    
     return {"debug": enabled, "message": f"Debug 模式已{'开启' if enabled else '关闭'}"}
 
 # 全局异常处理 — 确保所有响应都是 JSON（避免前端解析 HTML 崩溃）
@@ -170,6 +177,35 @@ def add_task_log(task_id, msg, level="INFO", **kwargs):
         logger.error(f"写入任务日志到DB失败: {e}")
 
 
+def add_debug_log(task_id, msg, **kwargs):
+    """添加DEBUG级别日志（仅在debug模式开启时记录）
+    
+    Args:
+        task_id: 任务ID
+        msg: i18n key 或纯文本消息
+        **kwargs: i18n 参数
+    """
+    global _debug_mode
+    if not _debug_mode:
+        return
+    
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    log_entry = {"time": timestamp, "level": "DEBUG", "key": msg, "params": kwargs}
+    
+    # 写入内存缓冲
+    if task_id in active_tasks:
+        task = active_tasks[task_id]
+        if "task_logs" not in task:
+            task["task_logs"] = []
+        task["task_logs"].append(log_entry)
+        # 限制内存中最多保留200条日志
+        if len(task["task_logs"]) > 200:
+            task["task_logs"] = task["task_logs"][-200:]
+    
+    # DEBUG日志不写入DB（避免占用太多空间）
+    logger.debug(f"[{task_id}] {msg} {kwargs}")
+
+
 # DTS2026061748509 — 断点续传：保存已转存文件ID到DB，支持中断后恢复
 def _save_checkpoint(task_id, transferred_fs_ids, last_batch_index, total_files):
     """保存转存断点到内存和DB
@@ -240,6 +276,9 @@ active_tasks = {}
 active_batches = {}
 # 解析进度追踪（两阶段：快速验证 + 后台文件枚举）
 parsing_tasks = {}  # task_id -> {status, share_info, files, dirs_scanned, error, ...}
+
+# Debug模式状态
+_debug_mode = False
 
 # Cookie 书签小工具回传状态
 _received_cookie = {"cookie": None}
@@ -595,6 +634,12 @@ async def transfer_selected(task_id: str, request: Request):
     uk = share_info.get("uk", "")
     
     logger.info(f"开始转存: {len(unique_files)} 个文件 (来自 {len(direct_files)} 个直接文件 + {len(dir_paths)} 个目录展开, {total_api_requests} 次API请求)")
+    add_debug_log(task_id, "log.debug_transfer_start", 
+                  total_files=len(unique_files), 
+                  direct_files=len(direct_files),
+                  dir_count=len(dir_paths),
+                  api_requests=total_api_requests,
+                  target_path=target_path)
     start_time = time.time()
     
     # ===== DTS2026062282633: 保留目录结构 =====
@@ -673,7 +718,17 @@ async def transfer_selected(task_id: str, request: Request):
             
             # 转存该目录下的文件
             logger.info(f"转存 {len(files)} 个文件到 {target_subdir}")
+            add_debug_log(task_id, "log.debug_batch_transfer",
+                          file_count=len(files),
+                          target=target_subdir,
+                          relative_dir=relative_dir)
             result = api.transfer_files_with_fallback(share_id, uk, files, target_subdir, pwd, share_link)
+            
+            add_debug_log(task_id, "log.debug_transfer_result",
+                          success=result.get("success", False),
+                          errno=result.get("errno", 0),
+                          error=result.get("error", ""),
+                          transferred=result.get("transferred", 0))
             
             if result.get("success"):
                 total_transferred += len(files)
@@ -1090,6 +1145,11 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         # 分享根目录通常是 "/" 或用户选中的目录
                         # 这里直接用 parent_dir 作为相对路径
                         dir_groups.setdefault(parent_dir, []).append(item)
+                    
+                    add_debug_log(task_id, "log.debug_batch_transfer",
+                                  file_count=len(remaining),
+                                  batch_num=batch_num,
+                                  dir_count=len(dir_groups))
                     
                     batch_success = 0
                     batch_failed = 0

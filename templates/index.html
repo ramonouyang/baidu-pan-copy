@@ -926,21 +926,38 @@
             <!-- 日志 -->
             <div x-show="progress.logs && progress.logs.length > 0">
                 <h3 class="font-medium text-gray-700 mb-2 flex items-center justify-between">
-                    <span><span x-text="t('progress.log_title')"></span>（<span x-text="(progress.logs || []).length"></span>）</span>
-                    <button @click="logsCollapsed = !logsCollapsed" class="text-xs text-blue-500 hover:text-blue-700">
-                        <span x-text="logsCollapsed ? t('progress.expand') : t('progress.collapse')"></span>
-                    </button>
+                    <span><span x-text="t('progress.log_title')"></span>（<span x-text="getFilteredLogs().length"></span>）</span>
+                    <div class="flex items-center gap-2">
+                        <!-- 日志过滤器 -->
+                        <div class="flex items-center gap-1 text-xs">
+                            <template x-for="level in ['all', 'INFO', 'WARNING', 'ERROR', 'SUCCESS', 'DEBUG']" :key="level">
+                                <button 
+                                    @click="logFilter = level"
+                                    :class="{
+                                        'bg-blue-500 text-white': logFilter === level,
+                                        'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600': logFilter !== level
+                                    }"
+                                    class="px-2 py-0.5 rounded-full transition-colors"
+                                    x-text="level === 'all' ? t('progress.filter_all') : level"
+                                ></button>
+                            </template>
+                        </div>
+                        <button @click="logsCollapsed = !logsCollapsed" class="text-xs text-blue-500 hover:text-blue-700">
+                            <span x-text="logsCollapsed ? t('progress.expand') : t('progress.collapse')"></span>
+                        </button>
+                    </div>
                 </h3>
                 <div x-show="!logsCollapsed" x-transition id="log-container" class="log-container bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-3 text-xs font-mono">
-                    <template x-for="(log, index) in (progress.logs || [])" :key="index">
-                        <div class="py-0.5 flex">
+                    <template x-for="(log, index) in getFilteredLogs()" :key="index">
+                        <div class="py-0.5 flex" :class="{ 'opacity-50': log.level === 'DEBUG' }">
                             <span class="text-gray-500 dark:text-gray-400 w-16 flex-shrink-0" x-text="log.time || ''"></span>
-                            <span class="w-12 flex-shrink-0 font-semibold"
+                            <span class="w-16 flex-shrink-0 font-semibold"
                                   :class="{
                                       'text-red-400': log.level === 'ERROR',
                                       'text-yellow-400 dark:text-yellow-300': log.level === 'WARNING',
                                       'text-green-400': log.level === 'SUCCESS',
-                                      'text-blue-400': log.level === 'INFO'
+                                      'text-blue-400': log.level === 'INFO',
+                                      'text-gray-400 dark:text-gray-500': log.level === 'DEBUG'
                                   }"
                                   x-text="'[' + (log.level || 'INFO') + ']'"></span>
                             <span class="text-gray-100 dark:text-gray-50" x-text="renderLog(log)"></span>
@@ -949,13 +966,25 @@
                 </div>
             </div>
             
-            <!-- 导出按钮 -->
-            <div x-show="progress.status === 'completed'" class="mt-4">
+            <!-- 导出/复制按钮 -->
+            <div x-show="progress.logs && progress.logs.length > 0" class="mt-4 flex gap-2">
                 <button 
                     @click="exportLog()" 
-                    class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                    class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
                 >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
                     <span x-text="t('progress.export')">导出日志</span>
+                </button>
+                <button 
+                    @click="copyLog()" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                    </svg>
+                    <span x-text="t('progress.copy_log')">复制日志</span>
                 </button>
             </div>
         </div>
@@ -1212,6 +1241,9 @@
                 'progress.expand': '展开 ▼',
                 'progress.collapse': '收起 ▲',
                 'progress.export': '导出日志',
+                'progress.copy_log': '复制日志',
+                'progress.filter_all': '全部',
+                'progress.export_copied': '日志已复制到剪贴板',
                 // Log messages
                 'log.started': '开始流水线转存，surl={surl}',
                 'log.dir_exists': '目标目录已存在: {path}',
@@ -1237,6 +1269,14 @@
                 'log.transfer_error': '转存异常: {error}',
                 'log.paused': '任务已暂停',
                 'log.resumed': '任务已继续',
+                // Debug log messages
+                'log.debug_mode': '[DEBUG] Debug模式已{enabled, select, true{开启} other{关闭}}',
+                'log.debug_transfer_start': '[DEBUG] 开始转存: {total_files}个文件, 目标: {target_path}',
+                'log.debug_batch_transfer': '[DEBUG] 批量转存: {file_count}个文件 → {target}',
+                'log.debug_transfer_result': '[DEBUG] 转存结果: success={success}, errno={errno}, transferred={transferred}',
+                'log.debug_cookie_status': '[DEBUG] Cookie状态: 长度={length}, 有效={valid}',
+                'log.debug_api_request': '[DEBUG] API请求: {method} {url}',
+                'log.debug_api_response': '[DEBUG] API响应: status={status}, errno={errno}',
                 // Current action messages
                 'progress.action.creating_dir': '正在创建目标目录...',
                 'progress.action.scanning': '正在扫描目录{dir}... 已扫描 {dirs} 个目录，找到 {files} 个文件，{requests} 次API请求',
@@ -1457,6 +1497,9 @@
                 'progress.expand': 'Expand ▼',
                 'progress.collapse': 'Collapse ▲',
                 'progress.export': 'Export Log',
+                'progress.copy_log': 'Copy Log',
+                'progress.filter_all': 'All',
+                'progress.export_copied': 'Log copied to clipboard',
                 // Log messages
                 'log.started': 'Pipeline transfer started, surl={surl}',
                 'log.dir_exists': 'Target directory already exists: {path}',
@@ -1482,6 +1525,14 @@
                 'log.transfer_error': 'Transfer error: {error}',
                 'log.paused': 'Task paused',
                 'log.resumed': 'Task resumed',
+                // Debug log messages
+                'log.debug_mode': '[DEBUG] Debug mode {enabled, select, true{enabled} other{disabled}}',
+                'log.debug_transfer_start': '[DEBUG] Starting transfer: {total_files} files, target: {target_path}',
+                'log.debug_batch_transfer': '[DEBUG] Batch transfer: {file_count} files → {target}',
+                'log.debug_transfer_result': '[DEBUG] Transfer result: success={success}, errno={errno}, transferred={transferred}',
+                'log.debug_cookie_status': '[DEBUG] Cookie status: length={length}, valid={valid}',
+                'log.debug_api_request': '[DEBUG] API request: {method} {url}',
+                'log.debug_api_response': '[DEBUG] API response: status={status}, errno={errno}',
                 // Current action messages
                 'progress.action.creating_dir': 'Creating target directory...',
                 'progress.action.scanning': 'Scanning directory{dir}... Scanned {dirs} directories, found {files} files, {requests} API requests',
@@ -1594,6 +1645,10 @@
                 showStats: false,
                 appVersion: '__VERSION__',
                 debugMode: false,
+                
+                // 日志过滤器
+                logFilter: 'all',  // all, INFO, WARNING, ERROR, SUCCESS, DEBUG
+                debugLogs: [],  // 存储DEBUG级别日志
                 
                 // 转存总结弹窗
                 showSummaryModal: false,
@@ -1838,6 +1893,16 @@
                 },
                 
                 // 渲染日志条目（i18n key + params 优先，回退到 translateLog）
+                // 日志过滤
+                getFilteredLogs() {
+                    const allLogs = [...(this.debugLogs || []), ...(this.progress.logs || [])];
+                    if (this.logFilter === 'all') {
+                        // 默认不显示DEBUG级别，除非明确选择
+                        return allLogs.filter(log => log.level !== 'DEBUG');
+                    }
+                    return allLogs.filter(log => log.level === this.logFilter);
+                },
+                
                 renderLog(log) {
                     // 新格式：{key, params} — 用 t() 翻译
                     if (log && log.key) {
@@ -2766,6 +2831,14 @@
                         const resp = await fetch(`/api/task/${taskId}/export`);
                         const data = await resp.json();
                         
+                        // 添加系统信息
+                        data.export_info = {
+                            browser: navigator.userAgent,
+                            version: this.appVersion,
+                            timestamp: new Date().toISOString(),
+                            filter: this.logFilter
+                        };
+                        
                         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -2773,6 +2846,40 @@
                         a.download = `task_${taskId}_log.json`;
                         a.click();
                         URL.revokeObjectURL(url);
+                    } catch (e) {
+                        alert(this.t('alert.export_failed') + e.message);
+                    }
+                },
+                
+                async copyLog() {
+                    const taskId = this.currentTask;
+                    if (!taskId) return;
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${taskId}/export`);
+                        const data = await resp.json();
+                        
+                        // 格式化为纯文本
+                        let text = `=== 任务日志 ===\n`;
+                        text += `任务ID: ${data.task_id}\n`;
+                        text += `状态: ${data.status}\n`;
+                        text += `文件: ${data.completed_files}/${data.total_files} 完成, ${data.failed_files} 失败\n`;
+                        text += `创建时间: ${data.created_at}\n`;
+                        text += `\n=== 执行日志 ===\n`;
+                        
+                        // 包含所有级别日志（包括DEBUG）
+                        const allLogs = [...(this.debugLogs || []), ...(data.logs || [])];
+                        allLogs.forEach(log => {
+                            text += `[${log.time || ''}] [${log.level || 'INFO'}] ${this.renderLog(log)}\n`;
+                        });
+                        
+                        text += `\n=== 系统信息 ===\n`;
+                        text += `浏览器: ${navigator.userAgent}\n`;
+                        text += `版本: ${this.appVersion}\n`;
+                        text += `导出时间: ${new Date().toISOString()}\n`;
+                        
+                        await navigator.clipboard.writeText(text);
+                        alert(this.t('progress.export_copied'));
                     } catch (e) {
                         alert(this.t('alert.export_failed') + e.message);
                     }
