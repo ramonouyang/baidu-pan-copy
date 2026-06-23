@@ -1469,18 +1469,34 @@ async def list_tasks():
             except:
                 pass
         
+        # 从 checkpoint 获取实际进度（运行中/暂停任务）
+        total = row[4] or 0
+        completed = row[5] or 0
+        failed = row[6] or 0
+        if status in ("ready", "running", "paused") and total == 0:
+            try:
+                checkpoint = row[14] if len(row) > 14 else None
+                if checkpoint:
+                    cp = json.loads(checkpoint)
+                    transferred = len(cp.get("transferred_fs_ids", []))
+                    if transferred > 0:
+                        completed = transferred
+                        total = cp.get("total_files", transferred)
+            except Exception:
+                pass
+        
         tasks.append({
             "id": row[0],
             "share_link": row[1],
             "target_path": row[2],
             "status": status,
-            "total_files": row[4],
-            "completed_files": row[5],
-            "failed_files": row[6],
+            "total_files": total,
+            "completed_files": completed,
+            "failed_files": failed,
             "created_at": created_at,
             "error_message": row[10],
             "batch_id": row[11],
-            "elapsed": elapsed,  # DTS-2026-013: 耗时（秒）
+            "elapsed": elapsed,
         })
     
     return tasks
