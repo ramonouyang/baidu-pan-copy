@@ -1036,8 +1036,7 @@
                             <th class="px-4 py-2 text-left text-sm font-medium text-gray-600" x-text="t('history.action')">操作</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <template x-for="task in historyTasks" :key="task.id">
+                    <template x-for="task in historyTasks" :key="task.id">
                             <tbody>
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2 text-sm" x-text="task.id"></td>
@@ -1067,7 +1066,7 @@
                                     <button @click.stop="toggleLogPanel(task.id)" 
                                             class="ml-1 px-2 py-1 text-xs bg-purple-100 text-purple-600 rounded hover:bg-purple-200 transition-colors"
                                             :class="expandedLogTask === task.id ? 'bg-purple-200' : ''">
-                                        <span x-text="t('history.log')">📋 日志</span>
+                                        <span x-text="t('history.log')">日志</span>
                                     </button>
                                     <button x-show="task.status === 'recoverable' || task.status === 'error'"
                                             @click.stop="recoverTask(task.id)" 
@@ -1480,7 +1479,7 @@
                 'history.created_at': '创建时间',
                 'history.action': '操作',
                 'history.view': '查看',
-                'history.log': '📋 日志',
+                'history.log': '日志',  // DTS2026062372772
                 'history.recover': '恢复',
                 'history.recover_success': '任务已恢复：{message}',
                 'history.recover_failed': '恢复失败：{error}',
@@ -1490,8 +1489,8 @@
                 'history.delete_success': '任务已删除',
                 'history.delete_failed': '删除失败：{error}',
                 'history.restore_confirm': '当前输入框有不同信息，替换后将丢失，是否继续？',
-                'history.task_log': '任务日志',
-                'history.no_logs': '暂无日志',
+                'history.task_log': '任务日志',  // DTS2026062372772
+                'history.no_logs': '暂无日志',  // DTS2026062372772
                 
                 // 转存总结弹窗
                 'summary.title': '📊 转存总结',
@@ -1761,7 +1760,7 @@
                 'history.created_at': 'Created At',
                 'history.action': 'Action',
                 'history.view': 'View',
-                'history.log': '📋 Log',
+                'history.log': 'Log',  // DTS2026062372772
                 'history.recover': 'Recover',
                 'history.recover_success': 'Task recovered: {message}',
                 'history.recover_failed': 'Recovery failed: {error}',
@@ -1771,8 +1770,8 @@
                 'history.delete_success': 'Task deleted',
                 'history.delete_failed': 'Delete failed: {error}',
                 'history.restore_confirm': 'Current input fields have different information. Replacing will lose the existing data. Continue?',
-                'history.task_log': 'Task Log',
-                'history.no_logs': 'No logs',
+                'history.task_log': 'Task Log',  // DTS2026062372772
+                'history.no_logs': 'No logs',  // DTS2026062372772
                 
                 // Transfer summary modal
                 'summary.title': '📊 Transfer Summary',
@@ -1873,7 +1872,7 @@
                 logFilter: 'all',  // DTS2026062386268: 前端日志过滤器 - all, INFO, WARNING, ERROR, SUCCESS, DEBUG
                 debugLogs: [],  // 存储DEBUG级别日志
                 
-                // 历史任务日志面板
+                // 历史任务日志面板 DTS2026062372772
                 expandedLogTask: null,  // 当前展开的日志面板任务ID
                 logPanelData: {},  // 缓存的任务日志数据 {taskId: {logs: [], loading: false}}
                 
@@ -3309,7 +3308,7 @@
                     }
                 },
                 
-                // 切换日志面板
+                // 切换日志面板 DTS2026062372772
                 async toggleLogPanel(taskId) {
                     if (this.expandedLogTask === taskId) {
                         this.expandedLogTask = null;
@@ -3335,7 +3334,7 @@
                     }
                 },
                 
-                // 导出历史任务日志
+                // 导出历史任务日志 DTS2026062372772
                 async exportHistoryLog(taskId) {
                     try {
                         const resp = await fetch(`/api/task/${taskId}/export`);
@@ -3360,7 +3359,7 @@
                     }
                 },
                 
-                // 复制历史任务日志
+                // 复制历史任务日志 DTS2026062372772
                 async copyHistoryLog(taskId) {
                     try {
                         const resp = await fetch(`/api/task/${taskId}/export`);
