@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.18"  # 孤儿任务恢复+i18n+任务详情
+__version__ = "1.1.19"  # DTS2026062396874: 历史任务恢复功能
 import json
 import time
 import sqlite3

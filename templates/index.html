@@ -1055,7 +1055,7 @@
                                 <td class="px-4 py-2 text-sm" x-text="`${task.completed_files}/${task.total_files}`"></td>
                                 <td class="px-4 py-2 text-sm" x-text="new Date(task.created_at).toLocaleString()"></td>
                                 <td class="px-4 py-2 text-sm">
-                                    <button @click.stop="showTaskSummary(task.id)" 
+                                    <button @click.stop="restoreTaskInfo(task.id); showTaskSummary(task.id)" 
                                             class="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
                                             x-text="t('history.view')">
                                         查看
@@ -1346,6 +1346,7 @@
                 'history.delete_confirm': '确定要删除这个任务吗？删除后无法恢复。',
                 'history.delete_success': '任务已删除',
                 'history.delete_failed': '删除失败：{error}',
+                'history.restore_confirm': '当前输入框有不同信息，替换后将丢失，是否继续？',
                 
                 // 转存总结弹窗
                 'summary.title': '📊 转存总结',
@@ -1621,6 +1622,7 @@
                 'history.delete_confirm': 'Are you sure you want to delete this task? This cannot be undone.',
                 'history.delete_success': 'Task deleted',
                 'history.delete_failed': 'Delete failed: {error}',
+                'history.restore_confirm': 'Current input fields have different information. Replacing will lose the existing data. Continue?',
                 
                 // Transfer summary modal
                 'summary.title': '📊 Transfer Summary',
@@ -3001,6 +3003,45 @@
                         alert(data.message || this.t('alert.cleared'));
                     } catch (e) {
                         alert(this.t('alert.clear_failed') + e.message);
+                    }
+                },
+                
+                // DTS2026062396874: 恢复任务信息到主页输入框
+                restoreTaskInfo(taskId) {
+                    const task = this.historyTasks.find(t => t.id === taskId);
+                    if (!task) return;
+                    
+                    const hasShareLink = task.share_link && task.share_link.trim();
+                    const hasPwd = task.pwd && task.pwd.trim();
+                    const hasTargetPath = task.target_path && task.target_path.trim();
+                    
+                    // 检查当前输入框状态
+                    const currentShareLink = this.shareLink && this.shareLink.trim();
+                    const currentPwd = this.sharePwd && this.sharePwd.trim();
+                    const currentTargetPath = this.targetPath && this.targetPath.trim();
+                    
+                    // 判断是否有冲突（输入框有不同信息）
+                    const hasConflict = 
+                        (currentShareLink && hasShareLink && currentShareLink !== hasShareLink) ||
+                        (currentPwd && hasPwd && currentPwd !== hasPwd) ||
+                        (currentTargetPath && hasTargetPath && currentTargetPath !== hasTargetPath);
+                    
+                    if (hasConflict) {
+                        // 有冲突，弹出确认
+                        if (!confirm(this.t('history.restore_confirm'))) {
+                            return; // 用户取消，不恢复
+                        }
+                    }
+                    
+                    // 恢复数据（只恢复非空字段，不清空已有数据）
+                    if (hasShareLink) {
+                        this.shareLink = task.share_link;
+                    }
+                    if (hasPwd) {
+                        this.sharePwd = task.pwd;
+                    }
+                    if (hasTargetPath) {
+                        this.targetPath = task.target_path;
                     }
                 },
                 
