@@ -48,3 +48,9 @@ dts_utils.py
 
 # Documentation build
 docs/_build/
+
+# Internal docs (not for open source)
+docs/prototype_*.html
+docs/baidu_pan_transfer_research.md
+docs/development_principles.md
+docs/pdf_parsing_design.md
