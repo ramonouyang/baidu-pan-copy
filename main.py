@@ -1143,8 +1143,8 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                 task["error"] = f"Cookie 已失效，已保存断点（已完成 {completed_count}/{files_found}），请重新设置 cookie 后重启"
                                 _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
                                 return
-                            elif errno == 2:
-                                # 文件名非法 — 逐个转存
+                            elif errno in (2, 1504):
+                                # 文件名非法或过长 — 逐个转存
                                 add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num, error=error)
                                 for f in remaining:
                                     sr = api.transfer_files_with_fallback(share_id, uk, [{"path": f.get("path",""), "fs_id": f.get("fs_id")}], target_subdir, pwd, share_link)

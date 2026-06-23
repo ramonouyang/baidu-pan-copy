@@ -938,12 +938,12 @@
                             <span class="w-12 flex-shrink-0 font-semibold"
                                   :class="{
                                       'text-red-400': log.level === 'ERROR',
-                                      'text-amber-600 dark:text-amber-400': log.level === 'WARNING',
+                                      'text-amber-300 dark:text-amber-200': log.level === 'WARNING',
                                       'text-green-400': log.level === 'SUCCESS',
                                       'text-blue-400': log.level === 'INFO'
                                   }"
                                   x-text="'[' + (log.level || 'INFO') + ']'"></span>
-                            <span class="text-gray-200 dark:text-gray-100" x-text="renderLog(log)"></span>
+                            <span class="text-gray-100 dark:text-gray-50" x-text="renderLog(log)"></span>
                         </div>
                     </template>
                 </div>
@@ -1881,6 +1881,7 @@
                             [/Insufficient space/i, '空间不足'],
                             [/Too many requests/i, '请求过于频繁'],
                             [/Request timeout/i, '请求超时'],
+                            [/Filename too long or contains special characters/i, '文件名过长或包含特殊字符'],
                         ];
                         for (const [pattern, replacement] of enToZh) {
                             if (pattern.test(message)) return replacement;
@@ -1959,6 +1960,7 @@
                         [/批量任务不存在/, 'Batch task not found'],
                         [/未找到任何可转存的文件/, 'No transferable files found'],
                         [/缺少surl参数/, 'Missing surl parameter'],
+                        [/文件名过长或包含特殊字符/, 'Filename too long or contains special characters'],
                         [/缺少surl参数，请重新解析分享链接/, 'Missing surl, please re-parse share link'],
                         [/请先设置Cookie/, 'Please set Cookie first'],
                         [/服务器错误，已重试(\d+)次/, 'Server error, retried $1 times'],
