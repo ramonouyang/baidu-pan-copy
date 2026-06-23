@@ -791,7 +791,7 @@
                     <!-- DTS2026061801236 — 按钮样式优化：渐变+SVG+动画 -->
                     <!-- DTS2026061899196 — 注释移到标签外，修复原始代码渲染 -->
                     <button 
-                        x-show="progress.status === 'error' && currentTask" 
+                        x-show="(progress.status === 'error' || progress.status === 'recoverable') && currentTask" 
                         @click="restartTask()"
                         class="group inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-indigo-600 active:scale-95 transition-all text-sm font-medium"
                     >
@@ -820,6 +820,7 @@
                           'bg-yellow-100 text-yellow-800': progress.status === 'running' || progress.status === 'paused',
                           'bg-green-100 text-green-800': progress.status === 'completed',
                           'bg-red-100 text-red-800': progress.status === 'error',
+                          'bg-orange-100 text-orange-800': progress.status === 'recoverable',
                           'bg-gray-100 text-gray-800': progress.status === 'ready'
                       }"
                       x-text="statusText[progress.status] || progress.status">
@@ -909,7 +910,7 @@
             </div>
             
             <!-- 断点续传提示 -->
-            <div x-show="progress.has_checkpoint && progress.status === 'error'" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <div x-show="progress.has_checkpoint && (progress.status === 'error' || progress.status === 'recoverable')" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
                 <span x-text="t('progress.checkpoint_tip')"></span>
             </div>
             
@@ -966,7 +967,7 @@
                 </div>
             </div>
             
-            <!-- 导出/复制按钮 -->
+            <!-- DTS2026062311321+DTS2026062354065: 导出按钮增强+一键复制功能 -->
             <div x-show="progress.logs && progress.logs.length > 0" class="mt-4 flex gap-2">
                 <button 
                     @click="exportLog()" 
@@ -1036,6 +1037,7 @@
                                               'bg-green-100 text-green-800': task.status === 'completed',
                                               'bg-red-100 text-red-800': task.status === 'error',
                                               'bg-yellow-100 text-yellow-800': task.status === 'running' || task.status === 'paused',
+                                              'bg-orange-100 text-orange-800': task.status === 'recoverable',
                                               'bg-gray-100 text-gray-800': true
                                           }"
                                           x-text="statusText[task.status] || task.status">
@@ -1048,6 +1050,11 @@
                                             class="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
                                             x-text="t('history.view')">
                                         查看
+                                    </button>
+                                    <button x-show="task.status === 'recoverable' || task.status === 'error'"
+                                            @click.stop="recoverTask(task.id)" 
+                                            class="ml-1 px-2 py-1 text-xs bg-orange-100 text-orange-600 rounded hover:bg-orange-200 transition-colors">
+                                        恢复
                                     </button>
                                 </td>
                             </tr>
@@ -1317,6 +1324,7 @@
                 'status.paused': '已暂停',
                 'status.completed': '已完成',
                 'status.error': '失败',
+                'status.recoverable': '可恢复',
                 'status.waiting_confirm': '等待确认',
                 // Tour
                 'tour.welcome_title': '欢迎使用百度网盘批量转存工具！',
@@ -1573,6 +1581,7 @@
                 'status.paused': 'Paused',
                 'status.completed': 'Completed',
                 'status.error': 'Failed',
+                'status.recoverable': 'Recoverable',
                 'status.waiting_confirm': 'Awaiting Confirm',
                 // Tour
                 'tour.welcome_title': 'Welcome to Baidu Pan Batch Transfer Tool!',
@@ -1647,7 +1656,7 @@
                 debugMode: false,
                 
                 // 日志过滤器
-                logFilter: 'all',  // all, INFO, WARNING, ERROR, SUCCESS, DEBUG
+                logFilter: 'all',  // DTS2026062386268: 前端日志过滤器 - all, INFO, WARNING, ERROR, SUCCESS, DEBUG
                 debugLogs: [],  // 存储DEBUG级别日志
                 
                 // 转存总结弹窗
@@ -1746,6 +1755,7 @@
                         'paused': this.t('status.paused'),
                         'completed': this.t('status.completed'),
                         'error': this.t('status.error'),
+                        'recoverable': this.t('status.recoverable'),
                         'waiting_confirm': this.t('status.waiting_confirm')
                     };
                 },
@@ -1893,7 +1903,7 @@
                 },
                 
                 // 渲染日志条目（i18n key + params 优先，回退到 translateLog）
-                // 日志过滤
+                // DTS2026062386268: 前端日志过滤器
                 getFilteredLogs() {
                     const allLogs = [...(this.debugLogs || []), ...(this.progress.logs || [])];
                     if (this.logFilter === 'all') {
@@ -2851,6 +2861,7 @@
                     }
                 },
                 
+                // DTS2026062354065: 一键复制功能
                 async copyLog() {
                     const taskId = this.currentTask;
                     if (!taskId) return;
@@ -2945,6 +2956,38 @@
                         console.error('获取总结异常:', e);
                     } finally {
                         this.summaryLoading = false;
+                    }
+                },
+                
+                // 恢复孤儿任务
+                async recoverTask(taskId) {
+                    try {
+                        // 获取当前 cookie
+                        const cookie = this.cookie || '';
+                        if (!cookie) {
+                            alert('请先设置 Cookie');
+                            return;
+                        }
+                        
+                        const resp = await fetch(`/api/task/${taskId}/recover`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({cookie: cookie}),
+                        });
+                        
+                        const data = await resp.json();
+                        if (resp.ok) {
+                            alert(`任务已恢复：${data.message}`);
+                            // 刷新任务列表
+                            await this.loadHistory();
+                            // 跳转到任务进度页面
+                            this.currentTask = taskId;
+                            this.startPolling(taskId);
+                        } else {
+                            alert(`恢复失败：${data.detail || '未知错误'}`);
+                        }
+                    } catch (e) {
+                        alert(`恢复失败：${e.message}`);
                     }
                 },
                 

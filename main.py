@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.16"  # Debug日志过滤器+导出增强+一键复制
+__version__ = "1.1.16"  # DTS2026062386268+DTS2026062316093+DTS2026062389245+DTS2026062311321+DTS2026062354065: Debug日志过滤器+导出增强+一键复制
 import json
 import time
 import sqlite3
@@ -131,6 +131,68 @@ def migrate_db():
 migrate_db()
 
 
+# ===== 启动时孤儿任务检测与恢复 =====
+def recover_orphan_tasks():
+    """服务器启动时检测DB中残留的 running/paused 状态任务，标记为中断"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        # 查找所有非终态任务
+        c.execute("""
+            SELECT id, share_link, target_path, status, checkpoint, completed_files, total_files
+            FROM tasks WHERE status IN ('running', 'paused', 'ready')
+        """)
+        orphans = c.fetchall()
+        conn.close()
+
+        if not orphans:
+            logger.info("[启动恢复] 无孤儿任务")
+            return
+
+        logger.warning(f"[启动恢复] 发现 {len(orphans)} 个孤儿任务")
+
+        for row in orphans:
+            task_id, share_link, target_path, status, checkpoint_json, completed, total = row
+            has_checkpoint = False
+            checkpoint_count = 0
+            try:
+                if checkpoint_json and checkpoint_json not in ('{}', ''):
+                    cp = json.loads(checkpoint_json)
+                    checkpoint_count = len(cp.get("transferred_fs_ids", []))
+                    has_checkpoint = checkpoint_count > 0
+            except:
+                pass
+
+            if has_checkpoint:
+                # 有断点 → 标记为可恢复
+                new_status = "recoverable"
+                error_msg = f"服务器重启中断（已完成 {checkpoint_count} 个文件，可从断点恢复）"
+                logger.info(f"[启动恢复] task={task_id} → recoverable (checkpoint={checkpoint_count})")
+            else:
+                # 无断点 → 标记为错误
+                new_status = "error"
+                error_msg = "服务器重启导致任务中断"
+                logger.info(f"[启动恢复] task={task_id} → error (无断点)")
+
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("""
+                    UPDATE tasks SET status = ?, error_message = ?, updated_at = ?
+                    WHERE id = ?
+                """, (new_status, error_msg, datetime.now().isoformat(), task_id))
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                logger.error(f"[启动恢复] 更新 task={task_id} 失败: {e}")
+
+    except Exception as e:
+        logger.error(f"[启动恢复] 扫描孤儿任务失败: {e}")
+
+
+recover_orphan_tasks()
+
+
 # DTS2026061748508 — 执行日志功能：同时写入内存缓冲 + DB
 def add_task_log(task_id, msg, level="INFO", **kwargs):
     """向任务的内存日志缓冲和DB追加一条日志（支持 i18n）
@@ -177,6 +239,7 @@ def add_task_log(task_id, msg, level="INFO", **kwargs):
         logger.error(f"写入任务日志到DB失败: {e}")
 
 
+# DTS2026062316093: Debug级别日志支持
 def add_debug_log(task_id, msg, **kwargs):
     """添加DEBUG级别日志（仅在debug模式开启时记录）
     
@@ -634,6 +697,7 @@ async def transfer_selected(task_id: str, request: Request):
     uk = share_info.get("uk", "")
     
     logger.info(f"开始转存: {len(unique_files)} 个文件 (来自 {len(direct_files)} 个直接文件 + {len(dir_paths)} 个目录展开, {total_api_requests} 次API请求)")
+    # DTS2026062389245: Debug日志收集 - 转存开始
     add_debug_log(task_id, "log.debug_transfer_start", 
                   total_files=len(unique_files), 
                   direct_files=len(direct_files),
@@ -718,12 +782,14 @@ async def transfer_selected(task_id: str, request: Request):
             
             # 转存该目录下的文件
             logger.info(f"转存 {len(files)} 个文件到 {target_subdir}")
+            # DTS2026062389245: Debug日志收集 - 批量转存
             add_debug_log(task_id, "log.debug_batch_transfer",
                           file_count=len(files),
                           target=target_subdir,
                           relative_dir=relative_dir)
             result = api.transfer_files_with_fallback(share_id, uk, files, target_subdir, pwd, share_link)
             
+            # DTS2026062389245: Debug日志收集 - 转存结果
             add_debug_log(task_id, "log.debug_transfer_result",
                           success=result.get("success", False),
                           errno=result.get("errno", 0),
@@ -1146,6 +1212,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         # 这里直接用 parent_dir 作为相对路径
                         dir_groups.setdefault(parent_dir, []).append(item)
                     
+                    # DTS2026062389245: Debug日志收集 - 流水线批量转存
                     add_debug_log(task_id, "log.debug_batch_transfer",
                                   file_count=len(remaining),
                                   batch_num=batch_num,
@@ -1415,6 +1482,257 @@ async def resume_task(task_id: str):
     _update_task_db(task_id, "running", 0, 0, 0)  # 同步状态到 DB
     add_task_log(task_id, "log.resumed", "INFO")
     return {"message": "任务已恢复", "task_id": task_id}
+
+
+@app.post("/api/task/{task_id}/recover")
+async def recover_task(task_id: str, request: Request):
+    """从断点恢复孤儿任务（服务器重启后的任务）
+    
+    请求体：{"cookie": "..."} — 可选，不传则使用最近收到的 cookie
+    """
+    # 从 DB 读取任务信息
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""
+            SELECT id, share_link, target_path, status, checkpoint, 
+                   completed_files, failed_files, total_files, error_message
+            FROM tasks WHERE id = ?
+        """, (task_id,))
+        row = c.fetchone()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询任务失败: {str(e)}")
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    tid, share_link, target_path, status, checkpoint_json, completed, failed, total, error_msg = row
+    
+    # 只允许恢复 recoverable 或 error 状态的任务
+    if status not in ("recoverable", "error"):
+        raise HTTPException(status_code=400, detail=f"任务状态为 {status}，无法恢复")
+    
+    # 解析 checkpoint
+    checkpoint = {}
+    try:
+        if checkpoint_json and checkpoint_json not in ('{}', ''):
+            checkpoint = json.loads(checkpoint_json)
+    except:
+        pass
+    
+    checkpoint_count = len(checkpoint.get("transferred_fs_ids", []))
+    
+    # 获取 cookie
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    cookie = body.get("cookie") or _received_cookie.get("cookie")
+    
+    if not cookie:
+        raise HTTPException(status_code=400, detail="需要提供 cookie（通过请求体或书签小工具）")
+    
+    # 从 share_link 提取 surl 和 pwd
+    surl = ""
+    pwd = ""
+    if "surl=" in share_link:
+        import re
+        match = re.search(r'surl=([^&]+)', share_link)
+        if match:
+            surl = match.group(1)
+        pwd_match = re.search(r'pwd=([^&]+)', share_link)
+        if pwd_match:
+            pwd = pwd_match.group(1)
+    
+    if not surl:
+        raise HTTPException(status_code=400, detail=f"无法从 share_link 提取 surl: {share_link}")
+    
+    # 创建 API 实例
+    api = BaiduPanAPI(cookie)
+    
+    # 验证 cookie
+    cookie_check = api.validate_cookie()
+    if not cookie_check.get("valid"):
+        api.close()
+        raise HTTPException(status_code=400, detail=f"Cookie 已失效: {cookie_check.get('error', '未知原因')}")
+    
+    # 获取分享信息
+    share_info_result = api.get_share_info(surl)
+    if "error" in share_info_result:
+        api.close()
+        raise HTTPException(status_code=400, detail=f"获取分享信息失败: {share_info_result['error']}")
+    
+    share_id = share_info_result.get("share_id", "")
+    uk = share_info_result.get("uk", "")
+    share_title = share_info_result.get("title", "")
+    
+    # 重建 active_tasks 条目
+    active_tasks[task_id] = {
+        "api": api,
+        "cookie": cookie,
+        "share_link": share_link,
+        "pwd": pwd,
+        "share_info": {
+            "share_id": share_id,
+            "uk": uk,
+            "title": share_title,
+        },
+        "surl": surl,
+        "target_path": target_path,
+        "status": "running",
+        "mode": "lazy",
+        "checkpoint": checkpoint,
+        "transfer_start_time": datetime.now().isoformat(),
+        "progress": {"phase": "collecting", "dirs_scanned": 0, "files_found": 0, "api_requests": 0},
+        "task_logs": [],
+        "error": "",
+    }
+    
+    task = active_tasks[task_id]
+    BATCH_SIZE = 100
+    
+    def run_lazy_transfer():
+        try:
+            add_task_log(task_id, "log.recovered", surl=surl, checkpoint_count=checkpoint_count)
+            logger.info(f"[恢复] 任务 {task_id} 从断点恢复: surl={surl}, checkpoint={checkpoint_count}")
+            
+            # 创建目标目录
+            if not api.check_file_exists(target_path):
+                api.create_dir(target_path)
+            
+            # 加载断点
+            transferred_fs_ids = set(checkpoint.get("transferred_fs_ids", []))
+            completed_count = len(transferred_fs_ids)
+            failed_count = 0
+            transfer_start_ts = time.time()
+            
+            if completed_count > 0:
+                add_task_log(task_id, "log.checkpoint", count=completed_count)
+            
+            # 验证 cookie
+            add_task_log(task_id, "log.validating_cookie")
+            cookie_check = api.validate_cookie()
+            if not cookie_check.get("valid"):
+                add_task_log(task_id, "log.cookie_expired", "ERROR", error=cookie_check.get('error', ''))
+                task["status"] = "error"
+                task["error"] = f"Cookie 已失效，请重新设置 cookie"
+                _update_task_db(task_id, "error", completed_count, 0, 0, error=task["error"])
+                return
+            add_task_log(task_id, "log.cookie_valid", user=cookie_check.get('username', 'unknown'))
+            
+            # 流水线收集+转存
+            add_task_log(task_id, "log.pipeline_start", batch_size=BATCH_SIZE)
+            
+            for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
+                while task.get("paused"):
+                    time.sleep(1)
+                
+                files = batch["files"]
+                dirs_scanned = batch["dirs_scanned"]
+                files_found = batch["files_found"]
+                batch_num = batch["batch_num"]
+                error = batch.get("error")
+                
+                if error:
+                    add_task_log(task_id, "log.collect_failed", "ERROR", batch=batch_num, error=error)
+                    task["status"] = "error"
+                    task["error"] = f"收集失败: {error}"
+                    _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                    _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
+                    return
+                
+                remaining = [f for f in files if f.get("fs_id") and f["fs_id"] not in transferred_fs_ids]
+                skipped = len(files) - len(remaining)
+                
+                task["progress"] = {
+                    "phase": "pipeline",
+                    "dirs_scanned": dirs_scanned,
+                    "files_found": files_found,
+                    "total": files_found,
+                    "completed": completed_count,
+                    "failed": failed_count,
+                    "current_action": f"第{batch_num}批: 收集{len(files)}文件, 跳过{skipped}, 待转存{len(remaining)}",
+                }
+                
+                if not remaining:
+                    continue
+                
+                add_task_log(task_id, "log.batch_info", batch=batch_num, total=len(files), skipped=skipped, remaining=len(remaining))
+                
+                transfer_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")} for f in remaining]
+                dir_groups = {}
+                for item in transfer_items:
+                    file_path = item.get("path", "")
+                    parent_dir = "/".join(file_path.split("/")[:-1]) or "/" if file_path else "/"
+                    dir_groups.setdefault(parent_dir, []).append(item)
+                
+                batch_success = 0
+                batch_failed = 0
+                
+                for parent_dir, group_items in dir_groups.items():
+                    target_subdir = target_path if parent_dir == "/" else f"{target_path}/{parent_dir.lstrip('/')}"
+                    
+                    if not api.check_file_exists(target_subdir):
+                        mkdir_result = api.create_dir(target_subdir)
+                        if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+                            logger.warning(f"创建目标子目录失败: {target_subdir}")
+                    
+                    transfer_result = api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link)
+                    
+                    if transfer_result.get("success"):
+                        batch_success += len(group_items)
+                        for f in remaining:
+                            fs_id = f.get("fs_id")
+                            if fs_id:
+                                transferred_fs_ids.add(fs_id)
+                    else:
+                        errno = transfer_result.get("errno", 0)
+                        batch_failed += len(group_items)
+                        
+                        if errno in (-62, -9):
+                            add_task_log(task_id, "log.batch_rate_limited", "ERROR", batch=batch_num, errno=errno)
+                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                            task["status"] = "error"
+                            task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}）"
+                            _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
+                            return
+                        elif errno in (-3, -4):
+                            add_task_log(task_id, "log.batch_cookie_expired", "ERROR", batch=batch_num, errno=errno)
+                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                            task["status"] = "error"
+                            task["error"] = f"Cookie 已失效，请重新设置 cookie"
+                            _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
+                            return
+                
+                completed_count += batch_success
+                failed_count += batch_failed
+                _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                _update_task_db(task_id, "running", completed_count, failed_count, files_found)
+            
+            # 完成
+            total_elapsed = time.time() - transfer_start_ts
+            task["status"] = "completed"
+            task["progress"]["phase"] = "completed"
+            _update_task_db(task_id, "completed", completed_count, failed_count, completed_count + failed_count)
+            _clear_checkpoint(task_id)
+            add_task_log(task_id, "log.completed", completed=completed_count, failed=failed_count, elapsed=int(total_elapsed))
+            
+        except Exception as e:
+            logger.error(f"[恢复] 任务异常: {e}")
+            add_task_log(task_id, "log.transfer_error", "ERROR", error=str(e))
+            task["status"] = "error"
+            task["error"] = str(e)
+            _update_task_db(task_id, "error", 0, 0, 0, error=str(e))
+        finally:
+            if api and not api.client.is_closed:
+                api.close()
+    
+    thread = threading.Thread(target=run_lazy_transfer, daemon=True)
+    thread.start()
+    
+    return {
+        "message": f"任务已从断点恢复（已有 {checkpoint_count} 个文件）",
+        "task_id": task_id,
+        "checkpoint_count": checkpoint_count,
+    }
 
 
 @app.get("/api/task/{task_id}/progress")
