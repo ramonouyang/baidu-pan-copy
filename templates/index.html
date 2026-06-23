@@ -447,6 +447,7 @@
                             :placeholder="t('single.target_placeholder')" 
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
+                        <p x-show="!targetPath" class="text-xs text-red-500 mt-1" x-text="t('validation.target_required')"></p>
                     </div>
                     
                     <button 
@@ -494,6 +495,7 @@
                             :placeholder="t('batch.target_placeholder')" 
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
+                        <p x-show="!targetPath" class="text-xs text-red-500 mt-1" x-text="t('validation.target_required')"></p>
                     </div>
                     
                     <div class="flex items-center">
@@ -1324,6 +1326,7 @@
                 'format.seconds': '秒',
                 'format.minutes': '分',
                 'format.hours': '小时',
+                'validation.target_required': '请填写目标路径',
             },
             en: {
                 // App
@@ -1567,6 +1570,7 @@
                 'format.seconds': 's',
                 'format.minutes': 'm',
                 'format.hours': 'h',
+                'validation.target_required': 'Target path is required',
             }
         };
 
