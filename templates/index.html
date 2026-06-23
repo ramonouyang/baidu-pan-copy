@@ -2060,6 +2060,16 @@
                         this.parseElapsed = Math.floor((Date.now() - this.parseStartTime) / 1000);
                     }, 1000);
                     
+                    // 自动从URL中提取提取码
+                    let pwd = this.sharePwd;
+                    if (!pwd && this.shareLink) {
+                        const urlMatch = this.shareLink.match(/[?&]pwd=([^&]+)/);
+                        if (urlMatch) {
+                            pwd = urlMatch[1];
+                            this.sharePwd = pwd;
+                        }
+                    }
+                    
                     try {
                         // 阶段1：快速验证分享链接（~2秒）
                         const resp = await fetch('/api/share/parse', {
@@ -2070,7 +2080,7 @@
                             },
                             body: JSON.stringify({
                                 share_link: this.shareLink,
-                                pwd: this.sharePwd,
+                                pwd: pwd,
                                 target_path: this.targetPath
                             })
                         });
