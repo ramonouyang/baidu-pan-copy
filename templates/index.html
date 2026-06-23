@@ -965,7 +965,7 @@
                             <span class="w-16 flex-shrink-0 font-semibold"
                                   :class="{
                                       'text-red-400': log.level === 'ERROR',
-                                      'text-yellow-400 dark:text-yellow-300': log.level === 'WARNING',
+                                      'text-yellow-400 dark:text-yellow-300': log.level === 'WARNING' || log.level === 'WARN',
                                       'text-green-400': log.level === 'SUCCESS',
                                       'text-blue-400': log.level === 'INFO',
                                       'text-gray-400 dark:text-gray-500': log.level === 'DEBUG'
@@ -1127,7 +1127,7 @@
                                                         <span class="font-semibold w-16 flex-shrink-0" 
                                                               :class="{
                                                                   'text-blue-400': log.level === 'INFO',
-                                                                  'text-yellow-400': log.level === 'WARNING',
+                                                                  'text-yellow-400': log.level === 'WARNING' || log.level === 'WARN',
                                                                   'text-red-400': log.level === 'ERROR',
                                                                   'text-green-400': log.level === 'SUCCESS',
                                                                   'text-gray-400': log.level === 'DEBUG'
@@ -2185,6 +2185,7 @@
                             [/Too many requests/i, '请求过于频繁'],
                             [/Request timeout/i, '请求超时'],
                             [/Filename too long or contains special characters/i, '文件名过长或包含特殊字符'],
+                            [/Filename contains special characters/i, '文件名包含特殊字符'],
                         ];
                         for (const [pattern, replacement] of enToZh) {
                             if (pattern.test(message)) return replacement;
@@ -2264,6 +2265,7 @@
                         [/未找到任何可转存的文件/, 'No transferable files found'],
                         [/缺少surl参数/, 'Missing surl parameter'],
                         [/文件名过长或包含特殊字符/, 'Filename too long or contains special characters'],
+                        [/文件名包含特殊字符/, 'Filename contains special characters'],
                         [/缺少surl参数，请重新解析分享链接/, 'Missing surl, please re-parse share link'],
                         [/请先设置Cookie/, 'Please set Cookie first'],
                         [/服务器错误，已重试(\d+)次/, 'Server error, retried $1 times'],

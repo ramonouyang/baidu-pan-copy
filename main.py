@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.19"  # DTS2026062396874+DTS2026062333864: 历史任务恢复+删除命名统一+双语修复
+__version__ = "1.1.19"  # DTS2026062396874+DTS2026062333864+DTS2026062372772+DTS2026062325277+DTS2026062326360+DTS2026062393623: 历史任务恢复+删除命名统一+双语修复+日志面板+排版修复
 import json
 import time
 import sqlite3
@@ -124,6 +124,7 @@ def migrate_db():
         ("pwd", "TEXT DEFAULT ''"),
         ("share_id", "TEXT DEFAULT ''"),
         ("uk", "TEXT DEFAULT ''"),
+        ("processed", "BOOLEAN DEFAULT 0"),
     ]:
         try:
             c.execute(f"ALTER TABLE tasks ADD COLUMN {col} {col_def}")
@@ -457,6 +458,86 @@ async def parse_share_link(req: ShareLinkRequest, request: Request):
     if not cookie:
         raise HTTPException(status_code=400, detail="请先设置Cookie")
     
+    # 重复任务检测
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, status, completed_files, total_files 
+        FROM tasks 
+        WHERE share_link = ? AND target_path = ? AND processed = 0
+        ORDER BY created_at DESC 
+        LIMIT 1
+    """, (req.share_link, req.target_path))
+    existing_task = c.fetchone()
+    conn.close()
+    
+    if existing_task:
+        task_id, status, completed, total = existing_task
+        
+        # 已完成的任务
+        if status == 'completed':
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": f"该任务已完成（{completed}/{total}文件），无需重复转存",
+                    "error_code": "completed",
+                    "existing_task_id": task_id,
+                    "completed": completed,
+                    "total": total
+                }
+            )
+        
+        # 正在运行的任务
+        if status in ('running', 'ready', 'pending'):
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": f"该任务正在运行中（{status}），请等待完成或取消后再试",
+                    "error_code": status,
+                    "existing_task_id": task_id,
+                    "completed": completed,
+                    "total": total
+                }
+            )
+        
+        # 可恢复的任务
+        if status == 'recoverable':
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": f"检测到中断任务 {task_id}（已完成 {completed} 个文件），请先恢复该任务",
+                    "error_code": "recoverable",
+                    "existing_task_id": task_id,
+                    "completed": completed,
+                    "total": total
+                }
+            )
+        
+        # 暂停的任务
+        if status == 'paused':
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": f"检测到暂停任务 {task_id}，请先恢复或取消该任务",
+                    "error_code": "paused",
+                    "existing_task_id": task_id,
+                    "completed": completed,
+                    "total": total
+                }
+            )
+        
+        # error 或 cancelled 状态：允许重新创建，标记旧任务为已处理
+        logger.info(f"[重复检测] 发现历史任务 {task_id}（{status}），允许重新创建")
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("UPDATE tasks SET processed = 1 WHERE id = ?", (task_id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"[重复检测] 标记旧任务 {task_id} processed 失败: {e}")
+    
+    # 创建新任务
     api = BaiduPanAPI(cookie)
     
     try:
@@ -1280,7 +1361,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                 task["error"] = f"Cookie 已失效，已保存断点（已完成 {completed_count}/{files_found}），请重新设置 cookie 后重启"
                                 _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
                                 return
-                            elif errno in (2, 1504):
+                            elif errno in (2, 12, 1504):
                                 # 文件名非法或过长 — 逐个转存
                                 add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num, error=error)
                                 for f in remaining:
@@ -1785,6 +1866,16 @@ async def recover_task(task_id: str, request: Request):
     
     thread = threading.Thread(target=run_lazy_transfer, daemon=True)
     thread.start()
+    
+    # 标记任务为已处理（防止重复恢复）
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE tasks SET processed = 1 WHERE id = ?", (task_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"[恢复] 标记 processed 失败: {e}")
     
     return {
         "message": f"任务已从断点恢复（已有 {checkpoint_count} 个文件）",

@@ -274,6 +274,7 @@ class BaiduPanAPI:
         -20: "分享链接已过期",
         -21: "提取码错误",
         -62: "请求过于频繁",
+        12: "文件名包含特殊字符",  # 百度网盘文件名校验错误
         1504: "文件名过长或包含特殊字符",  # 百度网盘文件名校验错误
         200025: "提取码输入错误，请重试",  # 新增：百度网盘新错误码
     }
@@ -1633,7 +1634,7 @@ class BaiduPanAPI:
                 return result
             # DTS2026061948271 — errno=-6（文件不存在）也需要 fallback 到 path 格式
             # errno=1504（文件名过长或特殊字符）也需要 fallback
-            if result.get("errno") not in (2, -6, 1504):
+            if result.get("errno") not in (2, 12, -6, 1504):
                 return result  # 非格式错误，直接返回
             logger.info(f"fs_id 格式失败(errno={result.get('errno')}), 尝试 path 格式")
         
