@@ -787,6 +787,14 @@
                     >
                         <span x-text="t('progress.resume')">继续</span>
                     </button>
+                    <!-- DTS2026062396624: 取消任务按钮 -->
+                    <button 
+                        x-show="progress.status === 'running' || progress.status === 'paused'" 
+                        @click="cancelTask()"
+                        class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                    >
+                        <span x-text="t('progress.cancel')">取消</span>
+                    </button>
                     <!-- DTS2026061748509 — 断点续传/重新启动按钮 -->
                     <!-- DTS2026061801236 — 按钮样式优化：渐变+SVG+动画 -->
                     <!-- DTS2026061899196 — 注释移到标签外，修复原始代码渲染 -->
@@ -821,7 +829,8 @@
                           'bg-green-100 text-green-800': progress.status === 'completed',
                           'bg-red-100 text-red-800': progress.status === 'error',
                           'bg-orange-100 text-orange-800': progress.status === 'recoverable',
-                          'bg-gray-100 text-gray-800': progress.status === 'ready'
+                          'bg-gray-100 text-gray-800': progress.status === 'ready',
+                          'bg-red-100 text-red-800': progress.status === 'cancelled'
                       }"
                       x-text="statusText[progress.status] || progress.status">
                 </span>
@@ -1054,7 +1063,7 @@
                                     <button x-show="task.status === 'recoverable' || task.status === 'error'"
                                             @click.stop="recoverTask(task.id)" 
                                             class="ml-1 px-2 py-1 text-xs bg-orange-100 text-orange-600 rounded hover:bg-orange-200 transition-colors">
-                                        恢复
+                                        <span x-text="t('history.recover')">恢复</span>
                                     </button>
                                 </td>
                             </tr>
@@ -1084,6 +1093,18 @@
             </div>
             
             <div x-show="!summaryLoading && summaryData" class="space-y-3">
+                <div x-show="summaryData?.share_link" class="p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600 text-sm" x-text="t('summary.share_link')">分享链接</span>
+                    <div class="mt-1 text-sm text-gray-800 break-all" x-text="summaryData?.share_link"></div>
+                </div>
+                <div x-show="summaryData?.pwd" class="p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600 text-sm" x-text="t('summary.pwd')">提取码</span>
+                    <div class="mt-1 text-sm font-mono text-gray-800" x-text="summaryData?.pwd"></div>
+                </div>
+                <div x-show="summaryData?.target_path" class="p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600 text-sm" x-text="t('summary.target_path')">目标路径</span>
+                    <div class="mt-1 text-sm text-gray-800" x-text="summaryData?.target_path"></div>
+                </div>
                 <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                     <span class="text-gray-600" x-text="t('summary.planned')">计划转存</span>
                     <span class="font-semibold text-blue-600" x-text="summaryData?.total_planned || 0"></span>
@@ -1228,6 +1249,9 @@
                 'progress.title': '任务进度',
                 'progress.pause': '暂停',
                 'progress.resume': '继续',
+                'progress.cancel': '取消',
+                'progress.cancel_confirm': '确定要取消任务吗？\n\n注意：已转存的文件需要手动删除，百度网盘不支持批量撤销。',
+                'progress.cancel_warning': '任务已取消。\n\n已转存的文件需要手动删除，百度网盘不支持批量撤销。',
                 'progress.checkpoint': '断点续传',
                 'progress.restart': '重新启动',
                 'progress.scan_progress': '📂 扫描进度',
@@ -1276,6 +1300,9 @@
                 'log.transfer_error': '转存异常: {error}',
                 'log.paused': '任务已暂停',
                 'log.resumed': '任务已继续',
+                'log.cancelled': '任务已取消',
+                'log.cancel_warning': '⚠️ 已转存的文件需要手动删除，百度网盘不支持批量撤销',
+                'log.cancel_stopped': '任务已取消，停止转存',
                 // Debug log messages
                 'log.debug_mode': '[DEBUG] Debug模式已{enabled, select, true{开启} other{关闭}}',
                 'log.debug_transfer_start': '[DEBUG] 开始转存: {total_files}个文件, 目标: {target_path}',
@@ -1306,10 +1333,17 @@
                 'history.created_at': '创建时间',
                 'history.action': '操作',
                 'history.view': '查看',
+                'history.recover': '恢复',
+                'history.recover_success': '任务已恢复：{message}',
+                'history.recover_failed': '恢复失败：{error}',
+                'history.need_cookie': '请先设置 Cookie',
                 
                 // 转存总结弹窗
                 'summary.title': '📊 转存总结',
                 'summary.loading': '加载中...',
+                'summary.share_link': '分享链接',
+                'summary.pwd': '提取码',
+                'summary.target_path': '目标路径',
                 'summary.planned': '计划转存',
                 'summary.success': '成功',
                 'summary.skipped': '跳过(已转存)',
@@ -1322,6 +1356,7 @@
                 'status.ready': '就绪',
                 'status.running': '执行中',
                 'status.paused': '已暂停',
+                'status.cancelled': '已取消',
                 'status.completed': '已完成',
                 'status.error': '失败',
                 'status.recoverable': '可恢复',
@@ -1484,6 +1519,9 @@
                 'progress.title': 'Task Progress',
                 'progress.pause': 'Pause',
                 'progress.resume': 'Resume',
+                'progress.cancel': 'Cancel',
+                'progress.cancel_confirm': 'Are you sure you want to cancel the task?\n\nNote: Already transferred files need to be deleted manually, Baidu Pan does not support batch undo.',
+                'progress.cancel_warning': 'Task cancelled.\n\nAlready transferred files need to be deleted manually, Baidu Pan does not support batch undo.',
                 'progress.checkpoint': 'Resume from Checkpoint',
                 'progress.restart': 'Restart',
                 'progress.summary': 'Summary',
@@ -1533,6 +1571,9 @@
                 'log.transfer_error': 'Transfer error: {error}',
                 'log.paused': 'Task paused',
                 'log.resumed': 'Task resumed',
+                'log.cancelled': 'Task cancelled',
+                'log.cancel_warning': '⚠️ Already transferred files need to be deleted manually, Baidu Pan does not support batch undo',
+                'log.cancel_stopped': 'Task cancelled, stopping transfer',
                 // Debug log messages
                 'log.debug_mode': '[DEBUG] Debug mode {enabled, select, true{enabled} other{disabled}}',
                 'log.debug_transfer_start': '[DEBUG] Starting transfer: {total_files} files, target: {target_path}',
@@ -1563,10 +1604,17 @@
                 'history.created_at': 'Created At',
                 'history.action': 'Action',
                 'history.view': 'View',
+                'history.recover': 'Recover',
+                'history.recover_success': 'Task recovered: {message}',
+                'history.recover_failed': 'Recovery failed: {error}',
+                'history.need_cookie': 'Please set Cookie first',
                 
                 // Transfer summary modal
                 'summary.title': '📊 Transfer Summary',
                 'summary.loading': 'Loading...',
+                'summary.share_link': 'Share Link',
+                'summary.pwd': 'Password',
+                'summary.target_path': 'Target Path',
                 'summary.planned': 'Planned',
                 'summary.success': 'Success',
                 'summary.skipped': 'Skipped (already transferred)',
@@ -1579,6 +1627,7 @@
                 'status.ready': 'Ready',
                 'status.running': 'Running',
                 'status.paused': 'Paused',
+                'status.cancelled': 'Cancelled',
                 'status.completed': 'Completed',
                 'status.error': 'Failed',
                 'status.recoverable': 'Recoverable',
@@ -1753,6 +1802,7 @@
                         'ready': this.t('status.ready'),
                         'running': this.t('status.running'),
                         'paused': this.t('status.paused'),
+                        'cancelled': this.t('status.cancelled'),
                         'completed': this.t('status.completed'),
                         'error': this.t('status.error'),
                         'recoverable': this.t('status.recoverable'),
@@ -2470,7 +2520,7 @@
                                 this.transferring = false;  // 需要确认时重置，让用户可以操作
                             }
                             
-                            if (data.status === 'completed' || data.status === 'error') {
+                            if (data.status === 'completed' || data.status === 'error' || data.status === 'recoverable') {
                                 clearInterval(this.progressTimer);
                                 this.progressTimer = null;
                                 this.transferring = false;  // 转存结束，重置按钮状态
@@ -2508,6 +2558,29 @@
                         this.progress.status = 'running';
                     } catch (e) {
                         console.error('恢复失败:', e);
+                    }
+                },
+                
+                // DTS2026062396624: 取消任务功能
+                async cancelTask() {
+                    if (!this.currentTask) return;
+                    
+                    // 确认对话框
+                    if (!confirm(this.t('progress.cancel_confirm'))) {
+                        return;
+                    }
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${this.currentTask}/cancel`, { method: 'POST' });
+                        const data = await resp.json();
+                        
+                        // 立即更新前端状态
+                        this.progress.status = 'cancelled';
+                        
+                        // 显示警告信息
+                        alert(this.t('progress.cancel_warning'));
+                    } catch (e) {
+                        console.error('取消失败:', e);
                     }
                 },
                 
@@ -2938,7 +3011,7 @@
                             }
                             await this._fetchSummary(this._summaryTaskId);
                             // 任务结束则停止轮询
-                            if (this.summaryData?.status === 'completed' || this.summaryData?.status === 'error') {
+                            if (this.summaryData?.status === 'completed' || this.summaryData?.status === 'error' || this.summaryData?.status === 'recoverable') {
                                 this._summaryPolling = false;
                                 clearInterval(this._summaryTimer);
                             }
@@ -2965,7 +3038,7 @@
                         // 获取当前 cookie
                         const cookie = this.cookie || '';
                         if (!cookie) {
-                            alert('请先设置 Cookie');
+                            alert(this.t('history.need_cookie'));
                             return;
                         }
                         
@@ -2977,17 +3050,17 @@
                         
                         const data = await resp.json();
                         if (resp.ok) {
-                            alert(`任务已恢复：${data.message}`);
+                            alert(this.t('history.recover_success').replace('{message}', data.message));
                             // 刷新任务列表
                             await this.loadHistory();
                             // 跳转到任务进度页面
                             this.currentTask = taskId;
                             this.startPolling(taskId);
                         } else {
-                            alert(`恢复失败：${data.detail || '未知错误'}`);
+                            alert(this.t('history.recover_failed').replace('{error}', data.detail || '未知错误'));
                         }
                     } catch (e) {
-                        alert(`恢复失败：${e.message}`);
+                        alert(this.t('history.recover_failed').replace('{error}', e.message));
                     }
                 },
                 

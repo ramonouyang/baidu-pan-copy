@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.16"  # DTS2026062386268+DTS2026062316093+DTS2026062389245+DTS2026062311321+DTS2026062354065: Debug日志过滤器+导出增强+一键复制
+__version__ = "1.1.18"  # 孤儿任务恢复+i18n+任务详情
 import json
 import time
 import sqlite3
@@ -120,6 +120,10 @@ def migrate_db():
         ("file_list", "TEXT DEFAULT '[]'"),
         ("transferred_files", "TEXT DEFAULT '[]'"),
         ("checkpoint", "TEXT DEFAULT '{}'"),
+        ("surl", "TEXT DEFAULT ''"),
+        ("pwd", "TEXT DEFAULT ''"),
+        ("share_id", "TEXT DEFAULT ''"),
+        ("uk", "TEXT DEFAULT ''"),
     ]:
         try:
             c.execute(f"ALTER TABLE tasks ADD COLUMN {col} {col_def}")
@@ -514,10 +518,11 @@ async def parse_share_link(req: ShareLinkRequest, request: Request):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""
-            INSERT INTO tasks (id, share_link, target_path, status, total_files, created_at, updated_at)
-            VALUES (?, ?, ?, 'ready', ?, ?, ?)
+            INSERT INTO tasks (id, share_link, target_path, status, total_files, created_at, updated_at, surl, pwd, share_id, uk)
+            VALUES (?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?)
         """, (task_id, req.share_link, req.target_path, 0,
-              datetime.now().isoformat(), datetime.now().isoformat()))
+              datetime.now().isoformat(), datetime.now().isoformat(),
+              surl, req.pwd or "", share_info.get("share_id", ""), share_info.get("uk", "")))
         conn.commit()
         conn.close()
         
@@ -1156,6 +1161,11 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     while task.get("paused"):
                         time.sleep(1)
                     
+                    # DTS2026062396624 — 取消检查：如果任务被取消，停止转存
+                    if task.get("cancelled"):
+                        add_task_log(task_id, "log.cancel_stopped", "WARNING")
+                        return
+                    
                     files = batch["files"]
                     dirs_scanned = batch["dirs_scanned"]
                     files_found = batch["files_found"]
@@ -1484,6 +1494,38 @@ async def resume_task(task_id: str):
     return {"message": "任务已恢复", "task_id": task_id}
 
 
+# DTS2026062396624: 取消任务功能
+@app.post("/api/task/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    """取消任务（停止后续转存，已转存的文件保留）"""
+    if task_id not in active_tasks:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    task = active_tasks[task_id]
+    
+    # 设置取消标志
+    task["cancelled"] = True
+    
+    # 如果有manager，调用cancel方法
+    manager = task.get("manager")
+    if manager:
+        manager.cancel()
+    
+    # 更新状态
+    task["status"] = "cancelled"
+    _update_task_db(task_id, "cancelled", 0, 0, 0)
+    
+    # 记录日志
+    add_task_log(task_id, "log.cancelled", "WARNING")
+    add_task_log(task_id, "log.cancel_warning", "WARNING")
+    
+    return {
+        "message": "任务已取消",
+        "task_id": task_id,
+        "warning": "已转存的文件需要手动删除，百度网盘不支持批量撤销"
+    }
+
+
 @app.post("/api/task/{task_id}/recover")
 async def recover_task(task_id: str, request: Request):
     """从断点恢复孤儿任务（服务器重启后的任务）
@@ -1496,7 +1538,8 @@ async def recover_task(task_id: str, request: Request):
         c = conn.cursor()
         c.execute("""
             SELECT id, share_link, target_path, status, checkpoint, 
-                   completed_files, failed_files, total_files, error_message
+                   completed_files, failed_files, total_files, error_message,
+                   surl, pwd, share_id, uk
             FROM tasks WHERE id = ?
         """, (task_id,))
         row = c.fetchone()
@@ -1507,7 +1550,8 @@ async def recover_task(task_id: str, request: Request):
     if not row:
         raise HTTPException(status_code=404, detail="任务不存在")
     
-    tid, share_link, target_path, status, checkpoint_json, completed, failed, total, error_msg = row
+    tid, share_link, target_path, status, checkpoint_json, completed, failed, total, error_msg, \
+        surl, pwd, share_id, uk = row
     
     # 只允许恢复 recoverable 或 error 状态的任务
     if status not in ("recoverable", "error"):
@@ -1530,17 +1574,17 @@ async def recover_task(task_id: str, request: Request):
     if not cookie:
         raise HTTPException(status_code=400, detail="需要提供 cookie（通过请求体或书签小工具）")
     
-    # 从 share_link 提取 surl 和 pwd
-    surl = ""
-    pwd = ""
-    if "surl=" in share_link:
-        import re
-        match = re.search(r'surl=([^&]+)', share_link)
-        if match:
-            surl = match.group(1)
-        pwd_match = re.search(r'pwd=([^&]+)', share_link)
-        if pwd_match:
-            pwd = pwd_match.group(1)
+    # 从 DB 读取 surl，如果为空则从 share_link 提取
+    if not surl:
+        if "surl=" in share_link:
+            import re
+            match = re.search(r'surl=([^&]+)', share_link)
+            if match:
+                surl = match.group(1)
+            if not pwd:
+                pwd_match = re.search(r'pwd=([^&]+)', share_link)
+                if pwd_match:
+                    pwd = pwd_match.group(1)
     
     if not surl:
         raise HTTPException(status_code=400, detail=f"无法从 share_link 提取 surl: {share_link}")
@@ -1554,26 +1598,35 @@ async def recover_task(task_id: str, request: Request):
         api.close()
         raise HTTPException(status_code=400, detail=f"Cookie 已失效: {cookie_check.get('error', '未知原因')}")
     
-    # 获取分享信息
-    share_info_result = api.get_share_info(surl)
-    if "error" in share_info_result:
-        api.close()
-        raise HTTPException(status_code=400, detail=f"获取分享信息失败: {share_info_result['error']}")
-    
-    share_id = share_info_result.get("share_id", "")
-    uk = share_info_result.get("uk", "")
-    share_title = share_info_result.get("title", "")
+    # 如果 DB 中没有 share_id/uk，才重新获取
+    if not share_id or not uk:
+        logger.info(f"[恢复] DB中无 share_id/uk，重新获取: surl={surl}")
+        share_info_result = api.get_share_info(surl)
+        if "error" in share_info_result:
+            api.close()
+            raise HTTPException(status_code=400, detail=f"获取分享信息失败: {share_info_result['error']}")
+        share_id = share_info_result.get("share_id", "")
+        uk = share_info_result.get("uk", "")
+        # 更新到 DB
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("UPDATE tasks SET share_id = ?, uk = ? WHERE id = ?", (share_id, uk, task_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"[恢复] 更新 share_id/uk 到DB失败: {e}")
     
     # 重建 active_tasks 条目
     active_tasks[task_id] = {
         "api": api,
         "cookie": cookie,
         "share_link": share_link,
-        "pwd": pwd,
+        "pwd": pwd or "",
         "share_info": {
             "share_id": share_id,
             "uk": uk,
-            "title": share_title,
+            "title": "",
         },
         "surl": surl,
         "target_path": target_path,
@@ -1624,6 +1677,11 @@ async def recover_task(task_id: str, request: Request):
             for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
                 while task.get("paused"):
                     time.sleep(1)
+                
+                # DTS2026062396624 — 取消检查：如果任务被取消，停止转存
+                if task.get("cancelled"):
+                    add_task_log(task_id, "log.cancel_stopped", "WARNING")
+                    return
                 
                 files = batch["files"]
                 dirs_scanned = batch["dirs_scanned"]
@@ -1903,6 +1961,8 @@ async def list_tasks():
             "error_message": row[10],
             "batch_id": row[11],
             "elapsed": elapsed,
+            "surl": row[15] if len(row) > 15 else "",
+            "pwd": row[16] if len(row) > 16 else "",
         })
     
     return tasks
@@ -2062,6 +2122,10 @@ async def get_task_summary(task_id: str):
         "dirs_scanned": 0,
         "api_requests": 0,
         "failed_files": [],
+        "share_link": row[1] if len(row) > 1 else "",
+        "target_path": row[2] if len(row) > 2 else "",
+        "surl": row[15] if len(row) > 15 else "",
+        "pwd": row[16] if len(row) > 16 else "",
     }
 
 
