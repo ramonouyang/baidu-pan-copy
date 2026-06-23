@@ -201,10 +201,8 @@ class RateLimiter:
 
 
 # 全局速率控制器实例
-# DTS-2026-009: 提升吞吐量 — rate 1.5→2.5, burst 2→4
 _global_limiter = RateLimiter(rate=2.5, burst=4)
 
-# DTS-2026-011: Debug 模式控制
 def set_debug_mode(enabled: bool):
     """切换日志级别：True=DEBUG, False=INFO"""
     level = logging.DEBUG if enabled else logging.INFO
@@ -259,7 +257,7 @@ class BaiduPanAPI:
     ERROR_CODES = {
         0: "成功",
         2: "文件名无效或包含非法字符",
-        4: "请求超时，请稍后再试",  # DTS2026062282633：百度临时超时，可重试
+        4: "请求超时，请稍后再试",
         -1: "系统错误",
         -2: "参数错误",
         -3: "用户未登录",
@@ -282,7 +280,7 @@ class BaiduPanAPI:
     def __init__(self, cookie: str):
         self.cookie = cookie
         self.bdclnd = ""  # Set after share verify
-        # ✅ DTS2026062143821：对齐 BaiduPCS-Py，headers 不含 Cookie
+
         # Cookie 由 httpx.Client cookie jar 自动管理（如 requests.Session）
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -320,7 +318,7 @@ class BaiduPanAPI:
                 value = value.strip()
                 if name:
                     self.client.cookies.set(name, value, domain=".baidu.com", path="/")
-        # ✅ DTS2026062143821：BDCLND 也必须同步到 cookie jar（client 重建时必须保留）
+
         if self.bdclnd:
             self._set_bdclnd_cookie(self.bdclnd)
     
@@ -334,7 +332,7 @@ class BaiduPanAPI:
         if self.client.is_closed:
             logger.info("HTTP client 已关闭，重新创建")
             self.client = httpx.Client(headers=self.headers, timeout=30.0)
-            # ✅ DTS2026062143821：重建后同步 cookie 到 jar
+
             self._sync_cookies_to_jar()
     
     def _share_headers(self) -> dict:
@@ -378,7 +376,7 @@ class BaiduPanAPI:
                     self.cookie = re.sub(r'BAIDUID=[^;]+', f'BAIDUID={baiduid}', self.cookie)
                 else:
                     self.cookie = f"{self.cookie}; BAIDUID={baiduid}"
-                # ✅ DTS2026062143821：同步到 cookie jar，不再手动设 headers Cookie
+
                 self._sync_cookies_to_jar()
                 logger.debug("[DIAG-COOKIE] %s BAIDUID: %s...", '刷新' if force_refresh else '获取', baiduid[:8])
             else:
@@ -389,15 +387,12 @@ class BaiduPanAPI:
     def _get_bdstoken(self) -> str:
         """获取 bdstoken（CSRF token），转存 API 必需"""
         if self._bdstoken_cache:
-            # DTS2026061793850 — 补充 bdstoken 缓存命中日志
             logger.info(f"[bdstoken] 缓存命中: {self._bdstoken_cache[:8]}...")
             return self._bdstoken_cache
         try:
             self._ensure_client()
-            # DTS2026061989160 — 确保 BAIDUID 存在，缺少会导致 errno=-6
             self._ensure_baiduid()
             _global_limiter.acquire(timeout=10.0)
-            # DTS2026061989160 — 添加 clienttype/app_id/web 参数，缺少会导致 errno=-6
             resp = self.client.get(
                 "https://pan.baidu.com/api/gettemplatevariable",
                 params={
@@ -409,14 +404,11 @@ class BaiduPanAPI:
                 headers=self.headers,
             )
             data = safe_json_parse(resp)
-            # DTS2026061948271 — 添加类型检查，防止 data 是 list 而非 dict
             if not isinstance(data, dict):
                 logger.warning(f"获取 bdstoken 失败: 响应不是 dict 类型: {type(data)}, data={str(data)[:200]}")
                 return ""
             
-            # DTS2026061989160 — errno=-6 时从响应 Set-Cookie 提取新 BAIDUID 并重试
             if data.get("errno") == -6:
-                # DTS2026061989160 — 添加详细诊断日志
                 logger.warning(f"获取 bdstoken 失败: errno=-6, 完整响应: {data}")
                 logger.warning(f"响应 headers: {dict(resp.headers)}")
                 logger.warning(f"请求 Cookie: {self._mask_cookie(self.headers.get('Cookie', ''))}")
@@ -434,10 +426,9 @@ class BaiduPanAPI:
                         self.cookie = re.sub(r'BAIDUID=[^;]+', f'BAIDUID={new_baiduid}', self.cookie)
                     else:
                         self.cookie = f"{self.cookie}; BAIDUID={new_baiduid}"
-                    # ✅ DTS2026062143821：同步到 cookie jar
+
                     self._sync_cookies_to_jar()
                     _global_limiter.acquire(timeout=10.0)
-                    # DTS2026061989160 — 重试也需要完整参数
                     resp = self.client.get(
                         "https://pan.baidu.com/api/gettemplatevariable",
                         params={
@@ -694,7 +685,7 @@ class BaiduPanAPI:
             # 检查 BDCLND 缓存（force_refresh 时跳过缓存）
             if not force_refresh and surl in self._bdclnd_cache:
                 self.bdclnd = self._bdclnd_cache[surl]
-                # ✅ DTS2026062143821：缓存命中也必须同步到 cookie jar，否则转存会 errno=200025
+
                 if self.bdclnd:
                     self._set_bdclnd_cookie(self.bdclnd)
                 logger.info(f"[BDCLND] 使用缓存: surl={surl}, bdclnd={self.bdclnd[:20]}..., 已同步到cookie jar")
@@ -747,7 +738,7 @@ class BaiduPanAPI:
                 
                 # 提取 BDCLND cookie
                 self.bdclnd = verify_resp.cookies.get("BDCLND", "")
-                # ✅ DTS2026062143821：BDCLND 必须存入 cookie jar
+
                 # BaiduPCS-Py 用 _cookies_update(resp.cookies.get_dict()) 自动管理
                 # self.client.post() 会自动携带 cookie jar 中的所有 cookie
                 if self.bdclnd:
@@ -965,7 +956,6 @@ class BaiduPanAPI:
                     follow_redirects=True,
                     timeout=timeout,
                 )
-                # DTS2026062238511 — HTTP 500/502/503/504 服务器临时错误重试
                 if resp.status_code in self._SERVER_ERROR_CODES:
                     server_retry = attempt - start_attempt
                     if server_retry < self._SERVER_ERROR_MAX:
@@ -1130,8 +1120,6 @@ class BaiduPanAPI:
         """重置收集统计（在调用 collect_files_recursive 前调用）"""
         self._collect_stats = {"dirs_scanned": 0, "api_requests": 0, "seq": 0, "last_req_time": time.time()}
     
-    # DTS2026061793847 — 流水线模式：BFS逐目录收集→立即转存，解决BDCLND过期
-    # DTS2026061793848 — 按数量分批：攒够100个文件就暂停收集→转存→继续
     def collect_files_batch(self, surl: str, batch_size: int = 100, root_dir: str = "/"):
         """流式收集：BFS 逐目录扫描，每攒够 batch_size 个文件就 yield 一批
         
@@ -1423,7 +1411,6 @@ class BaiduPanAPI:
             elif errno == 9019:
                 return {"error": "需要验证（BDCLND缺失）", "error_code": 9019}
             elif errno == -7:
-                # DTS2026061801238 — 目录已存在，视为成功
                 return {"success": True, "path": path, "existed": True}
             elif errno != 0:
                 error_msg = self._handle_error(errno, result.get("errmsg", ""))
@@ -1453,14 +1440,13 @@ class BaiduPanAPI:
         """
         self._ensure_client()
         
-        # [DIAG] DTS-2026-010: 记录原始 cookie 字符串（debug 级别，脱敏）
+
         logger.debug("[DIAG-COOKIE] self.cookie 原始字符串: %s", self._mask_cookie(self.cookie))
         logger.debug("[DIAG-COOKIE] self.cookie 长度: %d 字符", len(self.cookie))
         
         # 获取 bdstoken（CSRF token，转存 API 必需）
         bdstoken = self._get_bdstoken()
         
-        # DTS2026061827298 — 不在此处 create_dir，由调用方（流水线）负责创建目标目录
         # 此处冗余调用会导致：目录已存在 + ondup=newcopy → 百度创建带时间戳的副本目录
         
         # ✅ 修复：使用正确的端点 /share/transfer
@@ -1475,7 +1461,7 @@ class BaiduPanAPI:
         }
         
         # ✅ 修复：使用 fsidlist 参数名（不是 filelist）
-        # ✅ DTS2026062143821：pwd 不放 body（百度不认），通过 BDCLND cookie 传递
+
         data = {
             "fsidlist": json.dumps(file_paths),
             "path": target_path,
@@ -1487,11 +1473,11 @@ class BaiduPanAPI:
                 # 全局速率控制
                 _global_limiter.acquire(timeout=60.0)
                 
-                # ✅ DTS2026062143821：Cookie 由 httpx client cookie jar 自动管理
+
                 # BAIDUID 由 _get_bdstoken() → _ensure_baiduid() 保证，此处无需重复检查
                 
                 # ✅ 修复：Referer 必须是分享链接（不是 /disk/main）
-                # ✅ DTS2026062143821：对齐 BaiduPCS-Py 实现
+
                 # BaiduPCS-Py 的 PAN_HEADERS 不含 Cookie，Cookie 由 Session 自动管理
                 # 我们也必须从 headers 中移除 Cookie，让 httpx client cookie jar 生效
                 headers = dict(self.headers)
@@ -1508,7 +1494,6 @@ class BaiduPanAPI:
                     headers["Referer"] = f"https://pan.baidu.com/s/{share_id}"
                 
                 # ===== 发送请求 =====
-                # DTS-2026-010: 诊断日志改 debug 级别 + lazy formatting
                 logger.debug("[transfer] 开始发送: files=%d, attempt=%d/3", len(file_paths), attempt+1)
                 logger.debug("[transfer] Cookie header 长度: %d 字符", len(self.cookie))
                 logger.debug("[transfer] Cookie header 包含: %s", [p.split('=', 1)[0].strip() for p in self.cookie.split(';') if '=' in p])
@@ -1523,7 +1508,7 @@ class BaiduPanAPI:
                 logger.debug("[transfer] params: %s", params)
                 logger.debug("[transfer] data: %s", data)
                 
-                # ✅ DTS2026062143821：使用 self.client.post() 而非 httpx.post()
+
                 # BaiduPCS-Py 用 requests.Session 自动管理 cookie，httpx.Client 同理
                 # verify 后 BDCLND 已存入 client cookie jar，self.client.post 会自动携带
                 _resp = self.client.post(
@@ -1532,7 +1517,7 @@ class BaiduPanAPI:
                     data=data,
                     headers=headers,
                     follow_redirects=True,
-                    timeout=60.0  # DTS2026062282633: 增加超时时间，百度转存接口响应慢
+                    timeout=60.0
                 )
                 result = safe_json_parse(_resp)
                 logger.debug("[transfer] 响应: status=%d, errno=%s, 完整响应=%s", _resp.status_code, result.get('errno'), result)
@@ -1548,7 +1533,7 @@ class BaiduPanAPI:
                     logger.warning(f"转存被限流(errno={errno})，立即返回，等待用户稍后重试")
                     return {"success": False, "error": "请求过于频繁，请等待几分钟后重试", "errno": errno}
                 
-                # errno=4（请求超时）→ 检查是否实际成功（DTS2026062293868）
+
                 # 百度API有时返回 errno=4 但 duplicated 字段表示文件已转存成功
                 if errno == 4:
                     duplicated = result.get("duplicated", {})
@@ -1634,7 +1619,6 @@ class BaiduPanAPI:
             result = self.transfer_files(share_id, uk, file_ids, target_path, pwd, share_link)
             if result.get("success"):
                 return result
-            # DTS2026061948271 — errno=-6（文件不存在）也需要 fallback 到 path 格式
             # errno=1504（文件名过长或特殊字符）也需要 fallback
             if result.get("errno") not in (2, 12, -6, 1504):
                 return result  # 非格式错误，直接返回
@@ -1683,7 +1667,6 @@ class BatchTransferManager:
     1. 预构造模式：__init__(api, share_id, uk, files, target_path, pwd) 直接传参
     2. 延迟解析模式：__init__(api) 创建空实例，再调 prepare_transfer(url, pwd, target) 解析
     
-    DTS2026061836255 — 重构支持延迟解析模式，修复 4 个崩溃 bug
     """
     
     def __init__(self, api: BaiduPanAPI, share_id: str = "", uk: str = "", 
@@ -1711,7 +1694,6 @@ class BatchTransferManager:
     def prepare_transfer(self, url: str, pwd: str, target_path: str) -> dict:
         """解析分享链接并准备转存参数（延迟解析模式）
         
-        DTS2026061836255 — 新增方法，调用 get_share_info 解析分享信息
         """
         try:
             result = self.api.get_share_info(url, pwd)
@@ -1745,7 +1727,6 @@ class BatchTransferManager:
                          overwrite_confirmed: bool = False) -> dict:
         """执行批量转存
         
-        DTS2026061836255 — 新增 overwrite_confirmed 参数
         """
         if self.task_progress["status"] != "ready":
             return {"error": "任务未就绪"}
@@ -1759,7 +1740,6 @@ class BatchTransferManager:
         errors = []
         
         try:
-            # DTS2026061827298 — 目标目录由调用方创建（transfer_files 不再内部创建）
             # 先检查是否存在，避免百度创建带时间戳的副本目录
             if self.api.check_file_exists(self.target_path):
                 logger.info(f"目标目录已存在，跳过创建: {self.target_path}")
@@ -1839,7 +1819,6 @@ class BatchTransferManager:
                 "errors": errors
             }
             
-            # DTS2026061836255 — 文件冲突时返回 need_confirm 让前端提示用户
             if failed > 0 and not overwrite_confirmed:
                 # 检查是否有文件已存在的错误（errno=12 或包含"已存在"）
                 conflict_errors = [e for e in errors if "已存在" in e or "errno=12" in e.lower()]

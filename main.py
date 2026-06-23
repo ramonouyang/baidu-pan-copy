@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.20"  # DTS2026062428337: 安全扫描+errno=12+WARN颜色+正则排序+日志解析+i18n修复+版本更新
+__version__ = "1.1.20"
 import json
 import time
 import sqlite3
@@ -28,7 +28,6 @@ async def get_version():
     """返回当前版本号"""
     return {"version": __version__}
 
-# DTS-2026-011: Debug 模式控制
 @app.post("/api/debug")
 async def toggle_debug(request: Request):
     """切换 debug 日志模式"""
@@ -198,7 +197,6 @@ def recover_orphan_tasks():
 recover_orphan_tasks()
 
 
-# DTS2026061748508 — 执行日志功能：同时写入内存缓冲 + DB
 def add_task_log(task_id, msg, level="INFO", **kwargs):
     """向任务的内存日志缓冲和DB追加一条日志（支持 i18n）
     
@@ -244,7 +242,6 @@ def add_task_log(task_id, msg, level="INFO", **kwargs):
         logger.error(f"写入任务日志到DB失败: {e}")
 
 
-# DTS2026062316093: Debug级别日志支持
 def add_debug_log(task_id, msg, **kwargs):
     """添加DEBUG级别日志（仅在debug模式开启时记录）
     
@@ -274,7 +271,6 @@ def add_debug_log(task_id, msg, **kwargs):
     logger.debug(f"[{task_id}] {msg} {kwargs}")
 
 
-# DTS2026061748509 — 断点续传：保存已转存文件ID到DB，支持中断后恢复
 def _save_checkpoint(task_id, transferred_fs_ids, last_batch_index, total_files):
     """保存转存断点到内存和DB
     
@@ -421,7 +417,6 @@ async def receive_cookie(req: CookieRequest):
     if not req.cookie or "BDUSS" not in req.cookie:
         return JSONResponse({"ok": False, "message": "未检测到有效的百度网盘Cookie，请先登录"})
 
-    # DTS2026061801235 — STOKEN 缺失会导致转存 errno=-3
     has_stoken = "STOKEN" in req.cookie
     if not has_stoken:
         logger.warning("[cookie] Cookie 中缺少 STOKEN，转存功能可能无法使用")
@@ -783,7 +778,6 @@ async def transfer_selected(task_id: str, request: Request):
     uk = share_info.get("uk", "")
     
     logger.info(f"开始转存: {len(unique_files)} 个文件 (来自 {len(direct_files)} 个直接文件 + {len(dir_paths)} 个目录展开, {total_api_requests} 次API请求)")
-    # DTS2026062389245: Debug日志收集 - 转存开始
     add_debug_log(task_id, "log.debug_transfer_start", 
                   total_files=len(unique_files), 
                   direct_files=len(direct_files),
@@ -792,7 +786,6 @@ async def transfer_selected(task_id: str, request: Request):
                   target_path=target_path)
     start_time = time.time()
     
-    # ===== DTS2026062282633: 保留目录结构 =====
     # 分析选中的目录，找出公共前缀，按相对目录分组
     # dir_paths = 用户选中的目录列表（如 ["/labubu合集/拉布布", "/labubu合集/泡泡玛特"]）
     
@@ -868,14 +861,12 @@ async def transfer_selected(task_id: str, request: Request):
             
             # 转存该目录下的文件
             logger.info(f"转存 {len(files)} 个文件到 {target_subdir}")
-            # DTS2026062389245: Debug日志收集 - 批量转存
             add_debug_log(task_id, "log.debug_batch_transfer",
                           file_count=len(files),
                           target=target_subdir,
                           relative_dir=relative_dir)
             result = api.transfer_files_with_fallback(share_id, uk, files, target_subdir, pwd, share_link)
             
-            # DTS2026062389245: Debug日志收集 - 转存结果
             add_debug_log(task_id, "log.debug_transfer_result",
                           success=result.get("success", False),
                           errno=result.get("errno", 0),
@@ -1172,7 +1163,6 @@ async def start_task(task_id: str, req: ConfirmRequest):
         
         def run_lazy_transfer():
             try:
-                # DTS2026062143821: 获取提取码和分享链接，传递给转存函数
                 pwd = task.get("pwd", "")
                 share_link = task.get("share_link", "")
                 
@@ -1180,7 +1170,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 add_task_log(task_id, "log.started", surl=surl)
                 logger.info(f"流水线转存：开始, surl={surl}, target={target_path}, batch_size={BATCH_SIZE}")
                 
-                # 确保目标目录存在（DTS2026061827298 — 先检查是否存在，避免百度创建带时间戳的副本目录）
+
                 task["progress"] = {"phase": "collecting", "dirs_scanned": 0, "files_found": 0, "api_requests": 0}
                 task["progress"]["current_action"] = "正在创建目标目录..."
                 if api.check_file_exists(target_path):
@@ -1222,7 +1212,6 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     add_task_log(task_id, "log.checkpoint", count=completed_count)
                 
                 # ===== 阶段2.5：验证 cookie 有效性 =====
-                # DTS2026061801239 — 启动前验证 cookie，避免流水线启动后才报错
                 add_task_log(task_id, "log.validating_cookie")
                 cookie_check = api.validate_cookie()
                 if not cookie_check.get("valid"):
@@ -1238,11 +1227,9 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 add_task_log(task_id, "log.pipeline_start", batch_size=BATCH_SIZE)
                 
                 for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
-                    # DTS2026061801241 — 暂停检查：等待直到用户继续
                     while task.get("paused"):
                         time.sleep(1)
                     
-                    # DTS2026062396624 — 取消检查：如果任务被取消，停止转存
                     if task.get("cancelled"):
                         add_task_log(task_id, "log.cancel_stopped", "WARNING")
                         return
@@ -1289,7 +1276,6 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     
                     transfer_items = [{"path": f.get("path", ""), "fs_id": f.get("fs_id")} for f in remaining]
                     
-                    # ===== DTS2026062282633: 保留目录结构 =====
                     # 按文件的父目录分组，为每个子目录创建对应的目标路径
                     dir_groups = {}
                     for item in transfer_items:
@@ -1303,7 +1289,6 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         # 这里直接用 parent_dir 作为相对路径
                         dir_groups.setdefault(parent_dir, []).append(item)
                     
-                    # DTS2026062389245: Debug日志收集 - 流水线批量转存
                     add_debug_log(task_id, "log.debug_batch_transfer",
                                   file_count=len(remaining),
                                   batch_num=batch_num,
@@ -1428,7 +1413,6 @@ async def start_task(task_id: str, req: ConfirmRequest):
                     "api_requests": api._collect_stats.get("api_requests", 0),
                 }
                 
-                # ===== DTS2026062282633 + DTS-2026-012: 详细总结 + 结构化数据 =====
                 total_planned = completed_count + failed_count
                 skipped_count = len(transferred_fs_ids) - completed_count  # 断点续传跳过的
                 add_task_log(task_id, "log.summary_title")
@@ -1439,7 +1423,6 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 add_task_log(task_id, "log.summary_failed", count=failed_count)
                 add_task_log(task_id, "log.summary_elapsed", seconds=int(total_elapsed))
                 
-                # DTS-2026-012: 存储结构化总结数据，供前端弹窗使用
                 task["transfer_summary"] = {
                     "total_planned": files_found,
                     "success_count": completed_count,
@@ -1540,7 +1523,6 @@ async def pause_task(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
     
     task = active_tasks[task_id]
-    # DTS2026061801241 — 改用 paused 标志，兼容 lazy 模式（无 manager）
     task["paused"] = True
     
     # 旧模式：有 manager
@@ -1561,7 +1543,6 @@ async def resume_task(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
     
     task = active_tasks[task_id]
-    # DTS2026061801241 — 改用 paused 标志，兼容 lazy 模式（无 manager）
     task["paused"] = False
     
     # 旧模式：有 manager
@@ -1575,7 +1556,6 @@ async def resume_task(task_id: str):
     return {"message": "任务已恢复", "task_id": task_id}
 
 
-# DTS2026062396624: 取消任务功能
 @app.post("/api/task/{task_id}/cancel")
 async def cancel_task(task_id: str):
     """取消任务（停止后续转存，已转存的文件保留）"""
@@ -1759,7 +1739,6 @@ async def recover_task(task_id: str, request: Request):
                 while task.get("paused"):
                     time.sleep(1)
                 
-                # DTS2026062396624 — 取消检查：如果任务被取消，停止转存
                 if task.get("cancelled"):
                     add_task_log(task_id, "log.cancel_stopped", "WARNING")
                     return
@@ -1965,7 +1944,6 @@ async def get_task_progress(task_id: str):
             "confirm_data": task.get("confirm_data"),
             "logs": task_logs[-50:],  # 最近50条日志
             "has_checkpoint": has_checkpoint,
-            # DTS-2026-012: 转存总结数据（完成时返回）
             "transfer_summary": task.get("transfer_summary"),
         }
     
@@ -2011,7 +1989,6 @@ async def list_tasks():
     
     tasks = []
     for row in rows:
-        # DTS-2026-013: 计算耗时（completed/error 状态时）
         elapsed = 0
         status = row[3]
         created_at = row[7]
@@ -2110,7 +2087,6 @@ async def get_limiter_stats():
     return stats
 
 
-# DTS-2026-014: 获取任务转存总结
 @app.get("/api/task/{task_id}/summary")
 async def get_task_summary(task_id: str):
     """获取任务转存总结（优先从内存，否则从 checkpoint + DB 计算）"""
@@ -2246,7 +2222,6 @@ async def export_task_log(task_id: str):
     }
 
 
-# DTS2026062333864: 统一删除/Delete命名
 @app.delete("/api/tasks/clear")
 async def clear_tasks():
     """删除所有任务记录"""

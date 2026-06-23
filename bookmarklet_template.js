@@ -1,4 +1,3 @@
-// DTS2026061793849 — 一键登录书签小工具UI优化：卡片式引导、F12步骤、Cookie拼接格式
 javascript:void(function(){
 try{
 var c=document.cookie;

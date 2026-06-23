@@ -18,7 +18,6 @@
         .log-entry { font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.6; }
         .progress-bar { transition: width 0.3s ease; }
         
-        /* ===== DTS-2026-015: 优化深色模式（参考 Linear/Raycast） ===== */
         .dark body { 
             background-color: #0a0a0f;
             color: #e4e4e7; 
@@ -132,7 +131,6 @@
             background: #10b981;
         }
         
-        /* DTS-2026-015: 深色模式自定义滚动条 */
         .dark ::-webkit-scrollbar { width: 6px; height: 6px; }
         .dark ::-webkit-scrollbar-track { background: transparent; }
         .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
@@ -788,7 +786,6 @@
                     >
                         <span x-text="t('progress.resume')">继续</span>
                     </button>
-                    <!-- DTS2026062396624: 取消任务按钮 -->
                     <button 
                         x-show="progress.status === 'running' || progress.status === 'paused'" 
                         @click="cancelTask()"
@@ -796,9 +793,6 @@
                     >
                         <span x-text="t('progress.cancel')">取消</span>
                     </button>
-                    <!-- DTS2026061748509 — 断点续传/重新启动按钮 -->
-                    <!-- DTS2026061801236 — 按钮样式优化：渐变+SVG+动画 -->
-                    <!-- DTS2026061899196 — 注释移到标签外，修复原始代码渲染 -->
                     <button 
                         x-show="(progress.status === 'error' || progress.status === 'recoverable') && currentTask" 
                         @click="restartTask()"
@@ -901,7 +895,6 @@
             <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
                 <div>
                     <span class="text-gray-500" x-text="t('progress.speed_label')">速度：</span>
-                    <!-- DTS2026061748507 — 修复undefined速度显示 -->
                     <span class="font-medium" x-text="(progress.speed || 0) + ' ' + t('progress.speed_unit')"></span>
                 </div>
                 <div>
@@ -977,7 +970,7 @@
                 </div>
             </div>
             
-            <!-- DTS2026062311321+DTS2026062354065: 导出按钮增强+一键复制功能 -->
+
             <div x-show="progress.logs && progress.logs.length > 0" class="mt-4 flex gap-2">
                 <button 
                     @click="exportLog()" 
@@ -1014,7 +1007,6 @@
                     @click="if(confirm(t('history.clear_confirm'))) clearAllTasks()" 
                     class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
                 >
-                    <!-- DTS2026062333864: 统一删除/Delete命名 -->
                     <span x-text="t('history.clear')">删除所有</span>
                 </button>
             </div>
@@ -1479,8 +1471,7 @@
                 'history.created_at': '创建时间',
                 'history.action': '操作',
                 'history.view': '查看',
-                'history.log': '日志',  // DTS2026062372772
-                'duplicate.interrupted': '检测到中断任务',
+                'history.log': '日志',                'duplicate.interrupted': '检测到中断任务',
                 'duplicate.paused': '检测到暂停任务',
                 'duplicate.failed': '检测到失败任务',
                 'duplicate.cancelled': '检测到已取消任务',
@@ -1504,9 +1495,7 @@
                 'history.delete_success': '任务已删除',
                 'history.delete_failed': '删除失败：{error}',
                 'history.restore_confirm': '当前输入框有不同信息，替换后将丢失，是否继续？',
-                'history.task_log': '任务日志',  // DTS2026062372772
-                'history.no_logs': '暂无日志',  // DTS2026062372772
-                
+                'history.task_log': '任务日志',                'history.no_logs': '暂无日志',                
                 // 转存总结弹窗
                 'summary.title': '📊 转存总结',
                 'summary.loading': '加载中...',
@@ -1775,8 +1764,7 @@
                 'history.created_at': 'Created At',
                 'history.action': 'Action',
                 'history.view': 'View',
-                'history.log': 'Log',  // DTS2026062372772
-                'duplicate.interrupted': 'Interrupted task detected',
+                'history.log': 'Log',                'duplicate.interrupted': 'Interrupted task detected',
                 'duplicate.paused': 'Paused task detected',
                 'duplicate.failed': 'Failed task detected',
                 'duplicate.cancelled': 'Cancelled task detected',
@@ -1800,9 +1788,7 @@
                 'history.delete_success': 'Task deleted',
                 'history.delete_failed': 'Delete failed: {error}',
                 'history.restore_confirm': 'Current input fields have different information. Replacing will lose the existing data. Continue?',
-                'history.task_log': 'Task Log',  // DTS2026062372772
-                'history.no_logs': 'No logs',  // DTS2026062372772
-                
+                'history.task_log': 'Task Log',                'history.no_logs': 'No logs',                
                 // Transfer summary modal
                 'summary.title': '📊 Transfer Summary',
                 'summary.loading': 'Loading...',
@@ -1899,10 +1885,9 @@
                 debugMode: false,
                 
                 // 日志过滤器
-                logFilter: 'all',  // DTS2026062386268: 前端日志过滤器 - all, INFO, WARNING, ERROR, SUCCESS, DEBUG
+                logFilter: 'all',
                 debugLogs: [],  // 存储DEBUG级别日志
                 
-                // 历史任务日志面板 DTS2026062372772
                 expandedLogTask: null,  // 当前展开的日志面板任务ID
                 logPanelData: {},  // 缓存的任务日志数据 {taskId: {logs: [], loading: false}}
                 
@@ -2161,7 +2146,7 @@
                 },
                 
                 // 渲染日志条目（i18n key + params 优先，回退到 translateLog）
-                // DTS2026062386268: 前端日志过滤器
+
                 getFilteredLogs() {
                     const allLogs = [...(this.debugLogs || []), ...(this.progress.logs || [])];
                     if (this.logFilter === 'all') {
@@ -2796,7 +2781,7 @@
                     }
                 },
                 
-                // DTS2026062396624: 取消任务功能
+
                 async cancelTask() {
                     if (!this.currentTask) return;
                     
@@ -3169,7 +3154,7 @@
                     }
                 },
                 
-                // DTS2026062354065: 一键复制功能
+
                 async copyLog() {
                     const taskId = this.currentTask;
                     if (!taskId) return;
@@ -3226,7 +3211,7 @@
                     }
                 },
                 
-                // DTS2026062396874: 恢复任务信息到主页输入框
+
                 restoreTaskInfo(taskId) {
                     const task = this.historyTasks.find(t => t.id === taskId);
                     if (!task) return;
@@ -3338,7 +3323,6 @@
                     }
                 },
                 
-                // 切换日志面板 DTS2026062372772
                 async toggleLogPanel(taskId) {
                     if (this.expandedLogTask === taskId) {
                         this.expandedLogTask = null;
@@ -3383,7 +3367,6 @@
                     }
                 },
                 
-                // 导出历史任务日志 DTS2026062372772
                 async exportHistoryLog(taskId) {
                     try {
                         const resp = await fetch(`/api/task/${taskId}/export`);
@@ -3408,7 +3391,6 @@
                     }
                 },
                 
-                // 复制历史任务日志 DTS2026062372772
                 async copyHistoryLog(taskId) {
                     try {
                         const resp = await fetch(`/api/task/${taskId}/export`);
