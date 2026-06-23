@@ -3323,8 +3323,27 @@
                         try {
                             const resp = await fetch(`/api/task/${taskId}/export`);
                             const data = await resp.json();
+                            // 解析纯文本日志为结构化对象
+                            const parsedLogs = (data.logs || []).map(logStr => {
+                                const match = logStr.match(/^\[(\d{2}:\d{2}:\d{2})\]\s*\[(\w+)\]\s*(.*)$/);
+                                if (match) {
+                                    const [, time, level, rest] = match;
+                                    // 尝试解析 key 和 params
+                                    const keyMatch = rest.match(/^(\S+)\s*(.*)?$/);
+                                    if (keyMatch) {
+                                        const key = keyMatch[1];
+                                        let params = {};
+                                        try {
+                                            params = keyMatch[2] ? JSON.parse(keyMatch[2].replace(/'/g, '"')) : {};
+                                        } catch(e) {}
+                                        return { time, level, key, params };
+                                    }
+                                    return { time, level, message: rest };
+                                }
+                                return { message: logStr };
+                            });
                             this.logPanelData[taskId] = { 
-                                logs: data.logs || [], 
+                                logs: parsedLogs, 
                                 loading: false 
                             };
                         } catch (e) {
