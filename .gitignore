@@ -51,3 +51,8 @@ docs/baidu_pan_transfer_research.md
 docs/development_principles.md
 docs/pdf_parsing_design.md
 run.sh
+
+# Internal tracking files
+DTS*.md
+DTS_TRACKER.md
+dts_utils.py
