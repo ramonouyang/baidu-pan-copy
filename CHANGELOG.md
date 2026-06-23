@@ -26,7 +26,7 @@
 
 ### 优化
 - requirements.txt：移除未使用的 requests 依赖
-- .gitignore：排除敏感文件（*.db、*.pem、DTS*.md）
+- .gitignore：排除敏感文件（*.db、*.pem）
 
 ## [1.1.19] - 2026-06-23
 
@@ -120,7 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - requirements.txt: remove unused requests dependency
-- .gitignore: exclude sensitive files (*.db, *.pem, DTS*.md)
+- .gitignore: exclude sensitive files (*.db, *.pem)
 
 ## [1.1.19] - 2026-06-23
 

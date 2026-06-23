@@ -41,10 +41,6 @@ key.pem
 test_*.py
 .pytest_cache/
 
-# DTS tracker files
-DTS*.md
-DTS_TRACKER.md
-dts_utils.py
 
 # Documentation build
 docs/_build/
