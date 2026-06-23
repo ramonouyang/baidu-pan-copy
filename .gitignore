@@ -52,7 +52,8 @@ docs/development_principles.md
 docs/pdf_parsing_design.md
 run.sh
 
-# Internal tracking files
-DTS*.md
-DTS_TRACKER.md
-dts_utils.py
+
+# Internal files (not for distribution)
+*.tracking.md
+_tracking.md
+_utils.py
