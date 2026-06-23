@@ -929,8 +929,8 @@
                         <span x-text="logsCollapsed ? t('progress.expand') : t('progress.collapse')"></span>
                     </button>
                 </h3>
-                <div x-show="!logsCollapsed" x-transition class="log-container bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-3 text-xs font-mono">
-                    <template x-for="(log, index) in (progress.logs || []).slice().reverse()" :key="index">
+                <div x-show="!logsCollapsed" x-transition id="log-container" class="log-container bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-3 text-xs font-mono">
+                    <template x-for="(log, index) in (progress.logs || [])" :key="index">
                         <div class="py-0.5 flex">
                             <span class="text-gray-500 dark:text-gray-400 w-16 flex-shrink-0" x-text="log.time || ''"></span>
                             <span class="w-12 flex-shrink-0 font-semibold"
@@ -2318,7 +2318,10 @@
                             const resp = await fetch(`/api/task/${taskId}/progress`);
                             const data = await resp.json();
                             
+                            const wasAtBottom = this._isLogAtBottom();
                             this.progress = data;
+                            // 智能 auto-scroll：更新前在底部则更新后也滚到底部
+                            this.$nextTick(() => { if (wasAtBottom) this._scrollLogToBottom(); });
                             // 更新前端计时（优先用前端计时，回退用服务器时间差）
                             if (this.transferStartTime) {
                                 this.transferElapsed = Math.floor((Date.now() - this.transferStartTime) / 1000);
@@ -2781,6 +2784,18 @@
                 },
                 
                 // 格式化耗时
+                // 智能 auto-scroll：只在用户已在底部时自动滚动
+                _isLogAtBottom() {
+                    const el = document.getElementById('log-container');
+                    if (!el) return true; // 容器不存在时默认在底部
+                    return el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+                },
+                
+                _scrollLogToBottom() {
+                    const el = document.getElementById('log-container');
+                    if (el) el.scrollTop = el.scrollHeight;
+                },
+                
                 formatElapsed(seconds) {
                     const s = Math.round(seconds || 0);
                     if (s < 60) return `${s}${this.t('format.seconds')}`;
