@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.19"  # DTS2026062396874: 历史任务恢复功能
+__version__ = "1.1.19"  # DTS2026062396874+DTS2026062333864: 历史任务恢复+删除命名统一+双语修复
 import json
 import time
 import sqlite3
@@ -2155,9 +2155,10 @@ async def export_task_log(task_id: str):
     }
 
 
+# DTS2026062333864: 统一删除/Delete命名
 @app.delete("/api/tasks/clear")
 async def clear_tasks():
-    """清空所有任务记录"""
+    """删除所有任务记录"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM tasks")
