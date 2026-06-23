@@ -15,6 +15,7 @@
     <style>
         [x-cloak] { display: none !important; }
         .log-container { max-height: 300px; overflow-y: auto; }
+        .log-entry { font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.6; }
         .progress-bar { transition: width 0.3s ease; }
         
         /* ===== DTS-2026-015: 优化深色模式（参考 Linear/Raycast） ===== */
@@ -1048,6 +1049,7 @@
                                               'bg-red-100 text-red-800': task.status === 'error',
                                               'bg-yellow-100 text-yellow-800': task.status === 'running' || task.status === 'paused',
                                               'bg-orange-100 text-orange-800': task.status === 'recoverable',
+                                              'bg-gray-200 text-gray-600': task.status === 'cancelled',
                                               'bg-gray-100 text-gray-800': true
                                           }"
                                           x-text="statusText[task.status] || task.status">
@@ -1061,6 +1063,11 @@
                                             x-text="t('history.view')">
                                         查看
                                     </button>
+                                    <button @click.stop="toggleLogPanel(task.id)" 
+                                            class="ml-1 px-2 py-1 text-xs bg-purple-100 text-purple-600 rounded hover:bg-purple-200 transition-colors"
+                                            :class="expandedLogTask === task.id ? 'bg-purple-200' : ''">
+                                        <span x-text="t('history.log')">📋 日志</span>
+                                    </button>
                                     <button x-show="task.status === 'recoverable' || task.status === 'error'"
                                             @click.stop="recoverTask(task.id)" 
                                             class="ml-1 px-2 py-1 text-xs bg-orange-100 text-orange-600 rounded hover:bg-orange-200 transition-colors">
@@ -1072,11 +1079,154 @@
                                     </button>
                                 </td>
                             </tr>
+                            <!-- 日志面板 -->
+                            <tr x-show="expandedLogTask === task.id" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+                                <td colspan="6" class="px-4 py-3 bg-gray-50">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-sm font-semibold text-gray-700">
+                                            <span x-text="t('history.task_log')">任务日志</span> (<span x-text="task.id"></span>)
+                                        </span>
+                                        <div class="flex items-center gap-2">
+                                            <button @click.stop="exportHistoryLog(task.id)" 
+                                                    class="px-3 py-1.5 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center gap-1">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                                </svg>
+                                                <span x-text="t('progress.export')">导出日志</span>
+                                            </button>
+                                            <button @click.stop="copyHistoryLog(task.id)" 
+                                                    class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                                </svg>
+                                                <span x-text="t('progress.copy_log')">复制日志</span>
+                                            </button>
+                                            <button @click.stop="expandedLogTask = null" class="p-1 hover:bg-gray-200 rounded transition-colors">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="bg-white rounded border border-gray-200 p-3 max-h-48 overflow-y-auto">
+                                        <template x-if="logPanelData[task.id]?.loading">
+                                            <div class="text-center py-4 text-gray-500">
+                                                <span x-text="t('common.loading')">加载中...</span>
+                                            </div>
+                                        </template>
+                                        <template x-if="!logPanelData[task.id]?.loading && (!logPanelData[task.id]?.logs || logPanelData[task.id].logs.length === 0)">
+                                            <div class="text-center py-4 text-gray-500">
+                                                <span x-text="t('history.no_logs')">暂无日志</span>
+                                            </div>
+                                        </template>
+                                        <template x-if="!logPanelData[task.id]?.loading && logPanelData[task.id]?.logs?.length > 0">
+                                            <div>
+                                                <template x-for="(log, idx) in logPanelData[task.id].logs" :key="idx">
+                                                    <div class="log-entry flex items-start gap-3 p-1 hover:bg-gray-50 rounded">
+                                                        <span class="text-gray-400 w-20 flex-shrink-0" x-text="log.time || ''"></span>
+                                                        <span class="font-semibold w-16 flex-shrink-0" 
+                                                              :class="{
+                                                                  'text-blue-400': log.level === 'INFO',
+                                                                  'text-yellow-400': log.level === 'WARNING',
+                                                                  'text-red-400': log.level === 'ERROR',
+                                                                  'text-green-400': log.level === 'SUCCESS',
+                                                                  'text-gray-400': log.level === 'DEBUG'
+                                                              }"
+                                                              x-text="'[' + (log.level || 'INFO') + ']'"></span>
+                                                        <span class="text-gray-700" x-text="renderLog(log)"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </td>
+                            </tr>
                         </template>
                     </tbody>
                 </table>
             </div>
         </div>
+
+    <!-- 重复任务检测弹窗 -->
+    <div x-show="showDuplicateModal" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showDuplicateModal = false">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <span x-show="duplicateTaskInfo.status === 'recoverable'">⚠️ 检测到中断任务</span>
+                    <span x-show="duplicateTaskInfo.status === 'paused'">⏸️ 检测到暂停任务</span>
+                    <span x-show="duplicateTaskInfo.status === 'error'">❌ 检测到失败任务</span>
+                    <span x-show="duplicateTaskInfo.status === 'cancelled'">🚫 检测到已取消任务</span>
+                    <span x-show="duplicateTaskInfo.status === 'completed'">✅ 该任务已完成</span>
+                    <span x-show="['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)">🔄 该任务正在运行中</span>
+                </h3>
+                <button @click="showDuplicateModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="space-y-3 mb-6">
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600">任务ID</span>
+                    <span class="font-mono text-sm" x-text="duplicateTaskInfo.task_id"></span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600">已完成文件</span>
+                    <span class="font-semibold" x-text="`${duplicateTaskInfo.completed}/${duplicateTaskInfo.total}`"></span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-600">状态</span>
+                    <span class="px-2 py-1 rounded text-xs"
+                          :class="{
+                              'bg-orange-100 text-orange-800': duplicateTaskInfo.status === 'recoverable',
+                              'bg-yellow-100 text-yellow-800': duplicateTaskInfo.status === 'paused',
+                              'bg-red-100 text-red-800': duplicateTaskInfo.status === 'error',
+                              'bg-gray-200 text-gray-600': duplicateTaskInfo.status === 'cancelled',
+                              'bg-green-100 text-green-800': duplicateTaskInfo.status === 'completed',
+                              'bg-blue-100 text-blue-800': ['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)
+                          }"
+                          x-text="statusText[duplicateTaskInfo.status] || duplicateTaskInfo.status">
+                    </span>
+                </div>
+                
+                <!-- 提示信息 -->
+                <div class="p-3 bg-blue-50 rounded-lg text-sm text-blue-800"
+                     x-show="duplicateTaskInfo.status === 'recoverable' || duplicateTaskInfo.status === 'paused'">
+                    💡 恢复将从断点继续，已转存的文件不会重复
+                </div>
+                <div class="p-3 bg-blue-50 rounded-lg text-sm text-blue-800"
+                     x-show="duplicateTaskInfo.status === 'error' || duplicateTaskInfo.status === 'cancelled'">
+                    💡 重新创建将从头开始，已转存的文件会自动跳过
+                </div>
+            </div>
+            
+            <!-- 按钮 -->
+            <div class="flex justify-end space-x-3">
+                <button @click="showDuplicateModal = false"
+                        class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                    取消
+                </button>
+                <button x-show="duplicateTaskInfo.status === 'recoverable' || duplicateTaskInfo.status === 'paused'"
+                        @click="handleDuplicateRecover()"
+                        class="px-4 py-2 text-sm text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors">
+                    恢复任务
+                </button>
+                <button x-show="duplicateTaskInfo.status === 'error' || duplicateTaskInfo.status === 'cancelled'"
+                        @click="handleDuplicateRecreate()"
+                        class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
+                    重新创建
+                </button>
+                <button x-show="duplicateTaskInfo.status === 'completed' || ['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)"
+                        @click="showDuplicateModal = false"
+                        class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
+                    确定
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 转存总结弹窗 -->
     <div x-show="showSummaryModal" x-cloak
@@ -1136,6 +1286,8 @@
         // ===== i18n Translations =====
         const i18n = {
             zh: {
+                // Common
+                'common.loading': '加载中...',
                 // App
                 'app.title': '百度网盘批量转存工具',
                 'app.subtitle': '支持公开链接和好友分享，一键批量转存',
@@ -1327,6 +1479,7 @@
                 'history.created_at': '创建时间',
                 'history.action': '操作',
                 'history.view': '查看',
+                'history.log': '📋 日志',
                 'history.recover': '恢复',
                 'history.recover_success': '任务已恢复：{message}',
                 'history.recover_failed': '恢复失败：{error}',
@@ -1336,6 +1489,8 @@
                 'history.delete_success': '任务已删除',
                 'history.delete_failed': '删除失败：{error}',
                 'history.restore_confirm': '当前输入框有不同信息，替换后将丢失，是否继续？',
+                'history.task_log': '任务日志',
+                'history.no_logs': '暂无日志',
                 
                 // 转存总结弹窗
                 'summary.title': '📊 转存总结',
@@ -1412,6 +1567,8 @@
                 'validation.target_required': '请填写目标路径',
             },
             en: {
+                // Common
+                'common.loading': 'Loading...',
                 // App
                 'app.title': 'Baidu Pan Batch Transfer Tool',
                 'app.subtitle': 'Support public links and friend sharing, batch transfer with one click',
@@ -1603,6 +1760,7 @@
                 'history.created_at': 'Created At',
                 'history.action': 'Action',
                 'history.view': 'View',
+                'history.log': '📋 Log',
                 'history.recover': 'Recover',
                 'history.recover_success': 'Task recovered: {message}',
                 'history.recover_failed': 'Recovery failed: {error}',
@@ -1612,6 +1770,8 @@
                 'history.delete_success': 'Task deleted',
                 'history.delete_failed': 'Delete failed: {error}',
                 'history.restore_confirm': 'Current input fields have different information. Replacing will lose the existing data. Continue?',
+                'history.task_log': 'Task Log',
+                'history.no_logs': 'No logs',
                 
                 // Transfer summary modal
                 'summary.title': '📊 Transfer Summary',
@@ -1711,6 +1871,20 @@
                 // 日志过滤器
                 logFilter: 'all',  // DTS2026062386268: 前端日志过滤器 - all, INFO, WARNING, ERROR, SUCCESS, DEBUG
                 debugLogs: [],  // 存储DEBUG级别日志
+                
+                // 历史任务日志面板
+                expandedLogTask: null,  // 当前展开的日志面板任务ID
+                logPanelData: {},  // 缓存的任务日志数据 {taskId: {logs: [], loading: false}}
+                
+                // 重复任务检测弹窗
+                showDuplicateModal: false,
+                duplicateTaskInfo: {
+                    task_id: '',
+                    status: '',
+                    completed: 0,
+                    total: 0
+                },
+                duplicateResolve: null,  // Promise resolve 函数
                 
                 // 转存总结弹窗
                 showSummaryModal: false,
@@ -2218,6 +2392,33 @@
                         
                         if (!resp.ok) {
                             const err = await resp.json();
+                            
+                            // 处理重复任务检测（409 状态码）
+                            if (resp.status === 409 && err.error_code) {
+                                const userChoice = await this.showDuplicateTaskModal({
+                                    task_id: err.existing_task_id,
+                                    status: err.error_code,
+                                    completed: err.completed || 0,
+                                    total: err.total || 0
+                                });
+                                
+                                if (userChoice === 'recover') {
+                                    // 用户选择恢复，任务已恢复，跳转到进度页面
+                                    this.parsing = false;
+                                    this.stopParseElapsedTimer();
+                                    return;
+                                } else if (userChoice === 'recreate') {
+                                    // 用户选择重新创建，重新调用解析（此时旧任务已标记为 processed）
+                                    await this.parseShareLink();
+                                    return;
+                                } else {
+                                    // 用户取消
+                                    this.parsing = false;
+                                    this.stopParseElapsedTimer();
+                                    return;
+                                }
+                            }
+                            
                             if (err.error_code === -12) {
                                 const shareLink = err.share_link || this.shareLink;
                                 throw new Error(
@@ -3107,6 +3308,87 @@
                     }
                 },
                 
+                // 切换日志面板
+                async toggleLogPanel(taskId) {
+                    if (this.expandedLogTask === taskId) {
+                        this.expandedLogTask = null;
+                        return;
+                    }
+                    
+                    this.expandedLogTask = taskId;
+                    
+                    // 如果没有缓存数据，加载日志
+                    if (!this.logPanelData[taskId]) {
+                        this.logPanelData[taskId] = { logs: [], loading: true };
+                        try {
+                            const resp = await fetch(`/api/task/${taskId}/export`);
+                            const data = await resp.json();
+                            this.logPanelData[taskId] = { 
+                                logs: data.logs || [], 
+                                loading: false 
+                            };
+                        } catch (e) {
+                            console.error('加载日志失败:', e);
+                            this.logPanelData[taskId] = { logs: [], loading: false };
+                        }
+                    }
+                },
+                
+                // 导出历史任务日志
+                async exportHistoryLog(taskId) {
+                    try {
+                        const resp = await fetch(`/api/task/${taskId}/export`);
+                        const data = await resp.json();
+                        
+                        // 添加系统信息
+                        data.export_info = {
+                            browser: navigator.userAgent,
+                            version: this.appVersion,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `task_${taskId}_log.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    } catch (e) {
+                        alert(this.t('alert.export_failed') + e.message);
+                    }
+                },
+                
+                // 复制历史任务日志
+                async copyHistoryLog(taskId) {
+                    try {
+                        const resp = await fetch(`/api/task/${taskId}/export`);
+                        const data = await resp.json();
+                        
+                        // 格式化为纯文本
+                        let text = `=== 任务日志 ===\n`;
+                        text += `任务ID: ${data.task_id}\n`;
+                        text += `状态: ${data.status}\n`;
+                        text += `文件: ${data.completed_files}/${data.total_files} 完成, ${data.failed_files} 失败\n`;
+                        text += `创建时间: ${data.created_at}\n`;
+                        text += `\n=== 执行日志 ===\n`;
+                        
+                        (data.logs || []).forEach(log => {
+                            text += `[${log.time || ''}] [${log.level || 'INFO'}] ${this.renderLog(log)}\n`;
+                        });
+                        
+                        text += `\n=== 系统信息 ===\n`;
+                        text += `浏览器: ${navigator.userAgent}\n`;
+                        text += `版本: ${this.appVersion}\n`;
+                        text += `导出时间: ${new Date().toISOString()}\n`;
+                        
+                        await navigator.clipboard.writeText(text);
+                        alert(this.t('progress.export_copied'));
+                    } catch (e) {
+                        alert(this.t('alert.export_failed') + e.message);
+                    }
+                },
+                
                 // 删除单个任务
                 async deleteTask(taskId) {
                     if (!confirm(this.t('history.delete_confirm'))) {
@@ -3131,6 +3413,57 @@
                     } catch (e) {
                         alert(this.t('history.delete_failed').replace('{error}', e.message));
                     }
+                },
+                
+                // 显示重复任务弹窗（返回 Promise，用户选择后 resolve）
+                showDuplicateTaskModal(taskInfo) {
+                    return new Promise((resolve) => {
+                        this.duplicateTaskInfo = taskInfo;
+                        this.duplicateResolve = resolve;
+                        this.showDuplicateModal = true;
+                    });
+                },
+                
+                // 处理重复任务 - 恢复
+                async handleDuplicateRecover() {
+                    const taskId = this.duplicateTaskInfo.task_id;
+                    this.showDuplicateModal = false;
+                    
+                    try {
+                        const cookie = this.cookie || '';
+                        if (!cookie) {
+                            alert(this.t('history.need_cookie'));
+                            if (this.duplicateResolve) this.duplicateResolve('cancel');
+                            return;
+                        }
+                        
+                        const resp = await fetch(`/api/task/${taskId}/recover`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({cookie: cookie}),
+                        });
+                        
+                        const data = await resp.json();
+                        if (resp.ok) {
+                            alert(this.t('history.recover_success').replace('{message}', data.message));
+                            await this.loadHistory();
+                            this.currentTask = taskId;
+                            this.startPolling(taskId);
+                            if (this.duplicateResolve) this.duplicateResolve('recover');
+                        } else {
+                            alert(this.t('history.recover_failed').replace('{error}', data.detail || '未知错误'));
+                            if (this.duplicateResolve) this.duplicateResolve('cancel');
+                        }
+                    } catch (e) {
+                        alert(this.t('history.recover_failed').replace('{error}', e.message));
+                        if (this.duplicateResolve) this.duplicateResolve('cancel');
+                    }
+                },
+                
+                // 处理重复任务 - 重新创建
+                async handleDuplicateRecreate() {
+                    this.showDuplicateModal = false;
+                    if (this.duplicateResolve) this.duplicateResolve('recreate');
                 },
                 
                 // 格式化耗时
