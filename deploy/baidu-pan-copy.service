@@ -1,0 +1,16 @@
+[Unit]
+Description=Baidu Pan Batch Transfer Tool
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=%h/baidu-pan-copy
+ExecStart=%h/baidu-pan-copy/venv/bin/python start.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
