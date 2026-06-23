@@ -1154,12 +1154,12 @@
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-800">
-                    <span x-show="duplicateTaskInfo.status === 'recoverable'">⚠️ 检测到中断任务</span>
-                    <span x-show="duplicateTaskInfo.status === 'paused'">⏸️ 检测到暂停任务</span>
-                    <span x-show="duplicateTaskInfo.status === 'error'">❌ 检测到失败任务</span>
-                    <span x-show="duplicateTaskInfo.status === 'cancelled'">🚫 检测到已取消任务</span>
-                    <span x-show="duplicateTaskInfo.status === 'completed'">✅ 该任务已完成</span>
-                    <span x-show="['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)">🔄 该任务正在运行中</span>
+                    <span x-show="duplicateTaskInfo.status === 'recoverable'">⚠️ <span x-text="t('duplicate.interrupted')">检测到中断任务</span></span>
+                    <span x-show="duplicateTaskInfo.status === 'paused'">⏸️ <span x-text="t('duplicate.paused')">检测到暂停任务</span></span>
+                    <span x-show="duplicateTaskInfo.status === 'error'">❌ <span x-text="t('duplicate.failed')">检测到失败任务</span></span>
+                    <span x-show="duplicateTaskInfo.status === 'cancelled'">🚫 <span x-text="t('duplicate.cancelled')">检测到已取消任务</span></span>
+                    <span x-show="duplicateTaskInfo.status === 'completed'">✅ <span x-text="t('duplicate.completed')">该任务已完成</span></span>
+                    <span x-show="['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)">🔄 <span x-text="t('duplicate.running')">该任务正在运行中</span></span>
                 </h3>
                 <button @click="showDuplicateModal = false" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1170,15 +1170,15 @@
             
             <div class="space-y-3 mb-6">
                 <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span class="text-gray-600">任务ID</span>
+                    <span class="text-gray-600" x-text="t('duplicate.task_id')">任务ID</span>
                     <span class="font-mono text-sm" x-text="duplicateTaskInfo.task_id"></span>
                 </div>
                 <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span class="text-gray-600">已完成文件</span>
+                    <span class="text-gray-600" x-text="t('duplicate.completed_files')">已完成文件</span>
                     <span class="font-semibold" x-text="`${duplicateTaskInfo.completed}/${duplicateTaskInfo.total}`"></span>
                 </div>
                 <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span class="text-gray-600">状态</span>
+                    <span class="text-gray-600" x-text="t('duplicate.status')">状态</span>
                     <span class="px-2 py-1 rounded text-xs"
                           :class="{
                               'bg-orange-100 text-orange-800': duplicateTaskInfo.status === 'recoverable',
@@ -1195,11 +1195,11 @@
                 <!-- 提示信息 -->
                 <div class="p-3 bg-blue-50 rounded-lg text-sm text-blue-800"
                      x-show="duplicateTaskInfo.status === 'recoverable' || duplicateTaskInfo.status === 'paused'">
-                    💡 恢复将从断点继续，已转存的文件不会重复
+                    💡 <span x-text="t('duplicate.recover_hint')">恢复将从断点继续，已转存的文件不会重复</span>
                 </div>
                 <div class="p-3 bg-blue-50 rounded-lg text-sm text-blue-800"
                      x-show="duplicateTaskInfo.status === 'error' || duplicateTaskInfo.status === 'cancelled'">
-                    💡 重新创建将从头开始，已转存的文件会自动跳过
+                    💡 <span x-text="t('duplicate.recreate_hint')">重新创建将从头开始，已转存的文件会自动跳过</span>
                 </div>
             </div>
             
@@ -1207,22 +1207,22 @@
             <div class="flex justify-end space-x-3">
                 <button @click="showDuplicateModal = false"
                         class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                    取消
+                    <span x-text="t('duplicate.cancel')">取消</span>
                 </button>
                 <button x-show="duplicateTaskInfo.status === 'recoverable' || duplicateTaskInfo.status === 'paused'"
                         @click="handleDuplicateRecover()"
                         class="px-4 py-2 text-sm text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors">
-                    恢复任务
+                    <span x-text="t('duplicate.recover')">恢复任务</span>
                 </button>
                 <button x-show="duplicateTaskInfo.status === 'error' || duplicateTaskInfo.status === 'cancelled'"
                         @click="handleDuplicateRecreate()"
                         class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
-                    重新创建
+                    <span x-text="t('duplicate.recreate')">重新创建</span>
                 </button>
                 <button x-show="duplicateTaskInfo.status === 'completed' || ['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)"
                         @click="showDuplicateModal = false"
                         class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
-                    确定
+                    <span x-text="t('duplicate.confirm')">确定</span>
                 </button>
             </div>
         </div>
@@ -1480,6 +1480,21 @@
                 'history.action': '操作',
                 'history.view': '查看',
                 'history.log': '日志',  // DTS2026062372772
+                'duplicate.interrupted': '检测到中断任务',
+                'duplicate.paused': '检测到暂停任务',
+                'duplicate.failed': '检测到失败任务',
+                'duplicate.cancelled': '检测到已取消任务',
+                'duplicate.completed': '该任务已完成',
+                'duplicate.running': '该任务正在运行中',
+                'duplicate.task_id': '任务ID',
+                'duplicate.completed_files': '已完成文件',
+                'duplicate.status': '状态',
+                'duplicate.recover_hint': '恢复将从断点继续，已转存的文件不会重复',
+                'duplicate.recreate_hint': '重新创建将从头开始，已转存的文件会自动跳过',
+                'duplicate.cancel': '取消',
+                'duplicate.recover': '恢复任务',
+                'duplicate.recreate': '重新创建',
+                'duplicate.confirm': '确定',
                 'history.recover': '恢复',
                 'history.recover_success': '任务已恢复：{message}',
                 'history.recover_failed': '恢复失败：{error}',
@@ -1761,6 +1776,21 @@
                 'history.action': 'Action',
                 'history.view': 'View',
                 'history.log': 'Log',  // DTS2026062372772
+                'duplicate.interrupted': 'Interrupted task detected',
+                'duplicate.paused': 'Paused task detected',
+                'duplicate.failed': 'Failed task detected',
+                'duplicate.cancelled': 'Cancelled task detected',
+                'duplicate.completed': 'Task completed',
+                'duplicate.running': 'Task is running',
+                'duplicate.task_id': 'Task ID',
+                'duplicate.completed_files': 'Completed files',
+                'duplicate.status': 'Status',
+                'duplicate.recover_hint': 'Recover will continue from checkpoint, already transferred files will not be duplicated',
+                'duplicate.recreate_hint': 'Recreate will start from scratch, already transferred files will be auto-skipped',
+                'duplicate.cancel': 'Cancel',
+                'duplicate.recover': 'Recover Task',
+                'duplicate.recreate': 'Recreate',
+                'duplicate.confirm': 'OK',
                 'history.recover': 'Recover',
                 'history.recover_success': 'Task recovered: {message}',
                 'history.recover_failed': 'Recovery failed: {error}',
