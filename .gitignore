@@ -18,6 +18,9 @@ env/
 .vscode/
 *.swp
 *.swo
+
+# Logs (contain sensitive data)
+*.log
 *~
 
 # OS

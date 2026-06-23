@@ -248,6 +248,13 @@ class BaiduPanAPI:
     FILE_METAS_URL = f"{BASE_URL}/rest/2.0/xpan/multimedia?method=filemetas"
     UINFO_URL = f"{BASE_URL}/rest/2.0/xpan/nas?method=uinfo"
     
+    @staticmethod
+    def _mask_cookie(cookie: str) -> str:
+        """脱敏Cookie，只保留前20个字符和后10个字符"""
+        if not cookie or len(cookie) < 35:
+            return "***"
+        return cookie[:20] + "***" + cookie[-10:]
+    
     # 错误码映射
     ERROR_CODES = {
         0: "成功",
@@ -410,7 +417,7 @@ class BaiduPanAPI:
                 # DTS2026061989160 — 添加详细诊断日志
                 logger.warning(f"获取 bdstoken 失败: errno=-6, 完整响应: {data}")
                 logger.warning(f"响应 headers: {dict(resp.headers)}")
-                logger.warning(f"请求 Cookie: {self.headers.get('Cookie', '')[:200]}")
+                logger.warning(f"请求 Cookie: {self._mask_cookie(self.headers.get('Cookie', ''))}")
                 
                 new_baiduid = resp.cookies.get("BAIDUID", "")
                 if not new_baiduid:
@@ -1393,7 +1400,7 @@ class BaiduPanAPI:
             logger.info(f"[create_dir] 请求: path={path}, bdstoken={bdstoken[:8]}..., BDCLND={self.bdclnd[:20] if self.bdclnd else '空'}...")
             # DIAG: create_dir 用 httpx 成功，记录 httpx 实际发送的 Cookie 用于对比
             create_dir_headers = self._share_headers()
-            logger.debug("[DIAG-CREATE] httpx _share_headers Cookie: %s", create_dir_headers.get('Cookie', '无'))
+            logger.debug("[DIAG-CREATE] httpx _share_headers Cookie: %s", self._mask_cookie(create_dir_headers.get('Cookie', '无')))
             logger.debug("[DIAG-CREATE] httpx cookie jar keys: %s", list(dict(self.client.cookies).keys()))
             resp = self.client.post(url, params=params, data=data, headers=headers)
             result = safe_json_parse(resp)
@@ -1440,8 +1447,8 @@ class BaiduPanAPI:
         """
         self._ensure_client()
         
-        # [DIAG] DTS-2026-010: 记录原始 cookie 字符串（debug 级别）
-        logger.debug("[DIAG-COOKIE] self.cookie 原始字符串: %s", self.cookie)
+        # [DIAG] DTS-2026-010: 记录原始 cookie 字符串（debug 级别，脱敏）
+        logger.debug("[DIAG-COOKIE] self.cookie 原始字符串: %s", self._mask_cookie(self.cookie))
         logger.debug("[DIAG-COOKIE] self.cookie 长度: %d 字符", len(self.cookie))
         
         # 获取 bdstoken（CSRF token，转存 API 必需）
