@@ -1013,7 +1013,7 @@
                     @click="if(confirm(t('history.clear_confirm'))) clearAllTasks()" 
                     class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
                 >
-                    <span x-text="t('history.clear')">清空记录</span>
+                    <span x-text="t('history.clear')">删除所有</span>
                 </button>
             </div>
             
@@ -1064,6 +1064,10 @@
                                             @click.stop="recoverTask(task.id)" 
                                             class="ml-1 px-2 py-1 text-xs bg-orange-100 text-orange-600 rounded hover:bg-orange-200 transition-colors">
                                         <span x-text="t('history.recover')">恢复</span>
+                                    </button>
+                                    <button @click.stop="deleteTask(task.id)" 
+                                            class="ml-1 px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors">
+                                        <span x-text="t('history.delete')">删除</span>
                                     </button>
                                 </td>
                             </tr>
@@ -1254,6 +1258,7 @@
                 'progress.cancel_warning': '任务已取消。\n\n已转存的文件需要手动删除，百度网盘不支持批量撤销。',
                 'progress.checkpoint': '断点续传',
                 'progress.restart': '重新启动',
+                'progress.summary': '转存总结',
                 'progress.scan_progress': '📂 扫描进度',
                 'progress.dirs_files': '个目录，',
                 'progress.current': '当前：',
@@ -1322,8 +1327,8 @@
                 'default.target_path': '',
                 // History
                 'history.title': '历史任务',
-                'history.clear_confirm': '确定清空所有记录？',
-                'history.clear': '清空记录',
+                'history.clear_confirm': '确定删除所有记录？',
+                'history.clear': '删除所有',
                 'history.empty': '暂无历史任务',
                 'history.task_id': '任务ID',
                 'history.share_link': '分享链接',
@@ -1337,6 +1342,10 @@
                 'history.recover_success': '任务已恢复：{message}',
                 'history.recover_failed': '恢复失败：{error}',
                 'history.need_cookie': '请先设置 Cookie',
+                'history.delete': '删除',
+                'history.delete_confirm': '确定要删除这个任务吗？删除后无法恢复。',
+                'history.delete_success': '任务已删除',
+                'history.delete_failed': '删除失败：{error}',
                 
                 // 转存总结弹窗
                 'summary.title': '📊 转存总结',
@@ -1385,8 +1394,8 @@
                 'alert.select_files_first': '请先选择要转存的文件',
                 'alert.transfer_failed': '转存失败：',
                 'alert.export_failed': '导出失败：',
-                'alert.cleared': '已清空',
-                'alert.clear_failed': '清空失败：',
+                'alert.cleared': '已删除',
+                'alert.clear_failed': '删除失败：',
                 'alert.cookie_invalid': 'Cookie无效',
                 'alert.cookie_placeholder_input': '请输入真实的Cookie，不要使用示例文本',
                 'alert.validate_failed': '验证失败：',
@@ -1593,8 +1602,8 @@
                 'default.target_path': '',
                 // History
                 'history.title': 'History Tasks',
-                'history.clear_confirm': 'Clear all records?',
-                'history.clear': 'Clear All',
+                'history.clear_confirm': 'Delete all records?',
+                'history.clear': 'Delete All',
                 'history.empty': 'No history tasks',
                 'history.task_id': 'Task ID',
                 'history.share_link': 'Share Link',
@@ -1608,6 +1617,10 @@
                 'history.recover_success': 'Task recovered: {message}',
                 'history.recover_failed': 'Recovery failed: {error}',
                 'history.need_cookie': 'Please set Cookie first',
+                'history.delete': 'Delete',
+                'history.delete_confirm': 'Are you sure you want to delete this task? This cannot be undone.',
+                'history.delete_success': 'Task deleted',
+                'history.delete_failed': 'Delete failed: {error}',
                 
                 // Transfer summary modal
                 'summary.title': '📊 Transfer Summary',
@@ -1656,8 +1669,8 @@
                 'alert.select_files_first': 'Please select files to transfer first',
                 'alert.transfer_failed': 'Transfer failed: ',
                 'alert.export_failed': 'Export failed: ',
-                'alert.cleared': 'Cleared',
-                'alert.clear_failed': 'Clear failed: ',
+                'alert.cleared': 'Deleted',
+                'alert.clear_failed': 'Delete failed: ',
                 'alert.cookie_invalid': 'Cookie invalid',
                 'alert.cookie_placeholder_input': 'Please enter a real Cookie, not the example text',
                 'alert.validate_failed': 'Validation failed: ',
@@ -3061,6 +3074,32 @@
                         }
                     } catch (e) {
                         alert(this.t('history.recover_failed').replace('{error}', e.message));
+                    }
+                },
+                
+                // 删除单个任务
+                async deleteTask(taskId) {
+                    if (!confirm(this.t('history.delete_confirm'))) {
+                        return;
+                    }
+                    
+                    try {
+                        const resp = await fetch(`/api/task/${taskId}`, { method: 'DELETE' });
+                        const data = await resp.json();
+                        if (resp.ok) {
+                            // 从列表中移除
+                            this.historyTasks = this.historyTasks.filter(t => t.id !== taskId);
+                            // 如果删除的是当前任务，清空进度
+                            if (this.currentTask === taskId) {
+                                this.currentTask = null;
+                                this.progress = { status: 'idle', total: 0, completed: 0, failed: 0, failed_files: [], logs: [] };
+                            }
+                            alert(data.message || this.t('history.delete_success'));
+                        } else {
+                            alert(this.t('history.delete_failed').replace('{error}', data.detail || '未知错误'));
+                        }
+                    } catch (e) {
+                        alert(this.t('history.delete_failed').replace('{error}', e.message));
                     }
                 },
                 

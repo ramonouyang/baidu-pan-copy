@@ -2169,7 +2169,7 @@ async def clear_tasks():
     active_tasks.clear()
     active_batches.clear()
     
-    return {"message": f"已清空 {deleted} 条记录", "deleted": deleted}
+    return {"message": f"已删除 {deleted} 条记录", "deleted": deleted}
 
 
 @app.delete("/api/task/{task_id}")
