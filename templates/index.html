@@ -1038,6 +1038,7 @@
                     </thead>
                     <tbody>
                         <template x-for="task in historyTasks" :key="task.id">
+                            <tbody>
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2 text-sm" x-text="task.id"></td>
                                 <td class="px-4 py-2 text-sm max-w-xs truncate" x-text="task.share_link"></td>
@@ -1141,8 +1142,8 @@
                                     </div>
                                 </td>
                             </tr>
+                            </tbody>
                         </template>
-                    </tbody>
                 </table>
             </div>
         </div>
