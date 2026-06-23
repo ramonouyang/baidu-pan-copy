@@ -374,7 +374,7 @@
                         <input
                             type="text"
                             x-model="cookie"
-                            placeholder=""
+                            placeholder="BDUSS=xxx; STOKEN=xxx"
                             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         >
                         <button
@@ -1305,6 +1305,7 @@
                 'alert.cleared': '已清空',
                 'alert.clear_failed': '清空失败：',
                 'alert.cookie_invalid': 'Cookie无效',
+                'alert.cookie_placeholder_input': '请输入真实的Cookie，不要使用示例文本',
                 'alert.validate_failed': '验证失败：',
                 'alert.code_failed': '获取代码失败，请刷新页面重试',
                 'alert.expand_dir_failed': '展开目录失败：',
@@ -1549,6 +1550,7 @@
                 'alert.cleared': 'Cleared',
                 'alert.clear_failed': 'Clear failed: ',
                 'alert.cookie_invalid': 'Cookie invalid',
+                'alert.cookie_placeholder_input': 'Please enter a real Cookie, not the example text',
                 'alert.validate_failed': 'Validation failed: ',
                 'alert.code_failed': 'Failed to get code, please refresh and try again',
                 'alert.expand_dir_failed': 'Failed to expand directory: ',
@@ -1870,6 +1872,15 @@
                             [/No route to host/i, '无法连接到服务器，请检查网络'],
                             [/Connection timed out/i, '网络连接超时，请检查网络'],
                             [/SSL.*certificate/i, 'SSL证书验证失败，请检查网络环境'],
+                            [/File not found/i, '文件不存在'],
+                            [/Invalid filename/i, '文件名无效'],
+                            [/System error/i, '系统错误'],
+                            [/Parameter error/i, '参数错误'],
+                            [/User not logged in/i, '用户未登录'],
+                            [/Cookie invalid or expired/i, 'Cookie无效或已过期'],
+                            [/Insufficient space/i, '空间不足'],
+                            [/Too many requests/i, '请求过于频繁'],
+                            [/Request timeout/i, '请求超时'],
                         ];
                         for (const [pattern, replacement] of enToZh) {
                             if (pattern.test(message)) return replacement;
@@ -1906,7 +1917,20 @@
                         // Cookie相关
                         [/Cookie 中缺少 STOKEN/, 'Cookie missing STOKEN'],
                         [/Cookie 无效/, 'Invalid cookie'],
+                        [/Cookie无效或已过期/, 'Cookie invalid or expired'],
                         // 后端错误消息翻译
+                        [/文件不存在/, 'File not found'],
+                        [/文件名无效或包含非法字符/, 'Invalid filename or contains illegal characters'],
+                        [/系统错误/, 'System error'],
+                        [/参数错误/, 'Parameter error'],
+                        [/用户未登录/, 'User not logged in'],
+                        [/文件已存在/, 'File already exists'],
+                        [/文件被锁定/, 'File is locked'],
+                        [/空间不足/, 'Insufficient space'],
+                        [/验证码错误/, 'Verification code error'],
+                        [/分享链接已失效/, 'Share link is invalid'],
+                        [/分享链接已过期/, 'Share link has expired'],
+                        [/提取码输入错误/, 'Extraction code error'],
                         [/请求超时，请稍后再试/, 'Request timeout, please try again later'],
                         [/请求超时，请检查网络连接/, 'Request timeout, please check network connection'],
                         [/请求超时/, 'Request timeout'],
@@ -1989,6 +2013,15 @@
                     this.validating = true;
                     this.cookieStatus = '';
                     
+                    // 检查是否输入了placeholder示例文本
+                    if (this.cookie && (this.cookie.includes('BDUSS=xxx') || this.cookie.includes('yourBDUSSvalue'))) {
+                        this.cookieValid = false;
+                        this.cookieStatus = 'invalid';
+                        this.cookieError = this.t('alert.cookie_placeholder_input');
+                        this.validating = false;
+                        return;
+                    }
+                    
                     try {
                         const resp = await fetch('/api/cookie/validate', {
                             method: 'POST',
@@ -2006,11 +2039,11 @@
                         } else {
                             this.cookieValid = false;
                             this.cookieStatus = 'invalid';
-                            this.cookieError = data.error || this.t('alert.cookie_invalid');
+                            this.cookieError = this.translateLog(data.error) || this.t('alert.cookie_invalid');
                         }
                     } catch (e) {
                         this.cookieStatus = 'invalid';
-                        this.cookieError = this.t('alert.validate_failed') + e.message;
+                        this.cookieError = this.t('alert.validate_failed') + this.translateLog(e.message);
                     } finally {
                         this.validating = false;
                     }
