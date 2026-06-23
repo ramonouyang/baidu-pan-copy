@@ -2376,6 +2376,15 @@
                                 this.transferElapsed = Math.floor((Date.now() - new Date(data.transfer_start_time).getTime()) / 1000);
                             }
                             
+                            // 更新历史任务列表中的当前任务状态
+                            const idx = this.historyTasks.findIndex(t => t.id === taskId);
+                            if (idx >= 0) {
+                                this.historyTasks[idx].status = data.status;
+                                this.historyTasks[idx].completed_files = data.completed || 0;
+                                this.historyTasks[idx].failed_files = data.failed || 0;
+                                this.historyTasks[idx].total_files = data.total || 0;
+                            }
+                            
                             if (data.status === 'waiting_confirm' && data.confirm_data) {
                                 this.showOverwriteConfirm = true;
                                 this.confirmMessage = data.confirm_data.message;
