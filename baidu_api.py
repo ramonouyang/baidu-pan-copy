@@ -666,7 +666,11 @@ class BaiduPanAPI:
                     "used": data.get("used", 0),
                     "vip_type": data.get("vip_type", 0)
                 }
-            error_msg = self._handle_error(data.get("errno", -1))
+            errno = data.get("errno", -1)
+            # Cookie 验证时，errno=-6（文件不存在）实际表示 Cookie 无效
+            if errno == -6:
+                return {"valid": False, "error": "Cookie无效或已过期"}
+            error_msg = self._handle_error(errno)
             return {"valid": False, "error": error_msg}
         except httpx.TimeoutException:
             return {"valid": False, "error": "请求超时，请检查网络连接"}
