@@ -1165,6 +1165,9 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                         "total": files_found,
                                         "elapsed": round(time.time() - transfer_start_ts, 1),
                                     }
+                                    # 每10个文件同步进度到DB
+                                    if (completed_count + failed_count) % 10 == 0:
+                                        _update_task_db(task_id, "running", completed_count, failed_count, files_found)
                             else:
                                 add_task_log(task_id, "log.batch_failed", "ERROR", batch=batch_num, error=error, errno=errno)
                     
@@ -1192,6 +1195,8 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         "speed": speed,
                         "current_action": f"第{batch_num}批完成, 继续收集...",
                     })
+                    # 每批完成同步进度到DB
+                    _update_task_db(task_id, "running", completed_count, failed_count, files_found)
                 
                 # ===== 阶段4：完成 =====
                 total_elapsed = time.time() - transfer_start_ts
