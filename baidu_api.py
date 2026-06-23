@@ -274,7 +274,7 @@ class BaiduPanAPI:
         -20: "分享链接已过期",
         -21: "提取码错误",
         -62: "请求过于频繁",
-        12: "文件名包含特殊字符",  # 百度网盘文件名校验错误
+        12: "转存失败（可能是文件名或路径问题）",  # errno=12 需要进一步确认含义
         1504: "文件名过长或包含特殊字符",  # 百度网盘文件名校验错误
         200025: "提取码输入错误，请重试",  # 新增：百度网盘新错误码
     }
@@ -1587,12 +1587,14 @@ class BaiduPanAPI:
                         "extra": result.get("extra", {})
                     }
                 else:
-                    error_msg = self._handle_error(errno, result.get("errmsg", ""))
-                    logger.warning(f"转存失败: {error_msg} (errno={errno})")
+                    raw_errmsg = result.get("errmsg", "")
+                    error_msg = self._handle_error(errno, raw_errmsg)
+                    logger.warning(f"转存失败: {error_msg} (errno={errno}, raw_errmsg={raw_errmsg})")
                     return {
                         "success": False,
                         "error": error_msg,
-                        "errno": errno
+                        "errno": errno,
+                        "raw_errmsg": raw_errmsg  # 保留原始错误信息
                     }
             except httpx.TimeoutException:
                 if attempt < 4:
