@@ -897,6 +897,9 @@ class BaiduPanAPI:
     _SERVER_ERROR_MAX = 5      # 服务器错误最大重试次数
     _SERVER_ERROR_BASE_DELAY = 3   # 服务器错误首次延迟秒数
     _SERVER_ERROR_DELAY_STEP = 2   # 服务器错误延迟递增秒数（3→5→7→9→11）
+    _CDN_404_MAX = 3           # CDN 404 最大重试次数
+    _CDN_404_BASE_DELAY = 5    # CDN 404 首次延迟秒数
+    _CDN_404_DELAY_STEP = 5    # CDN 404 延迟递增秒数（5→10→15）
     
     def get_share_children(self, surl: str, dir_path: str = "/", parent_child_count: int = 0) -> dict:
         """获取分享目录的直接子项（带超时重试，最多10次，线性递增）
@@ -943,6 +946,7 @@ class BaiduPanAPI:
         }
         
         last_error = None
+        cdn_404_count = 0  # CDN 404 重试计数
         for attempt in range(start_attempt, self._RETRY_MAX):
             timeout = self._RETRY_BASE_TIMEOUT + self._RETRY_TIMEOUT_STEP * attempt
             req_start = time.time()
@@ -956,6 +960,7 @@ class BaiduPanAPI:
                     follow_redirects=True,
                     timeout=timeout,
                 )
+                # 检查 HTTP 状态码
                 if resp.status_code in self._SERVER_ERROR_CODES:
                     server_retry = attempt - start_attempt
                     if server_retry < self._SERVER_ERROR_MAX:
@@ -973,6 +978,28 @@ class BaiduPanAPI:
                             f"已达最大重试次数 {self._SERVER_ERROR_MAX}"
                         )
                         return {"error": f"服务器错误 (HTTP {resp.status_code})，已重试{self._SERVER_ERROR_MAX}次"}
+                
+                # CDN 404 临时性故障重试（百度 CDN 有时返回 nginx 404 而非 JSON 错误）
+                if resp.status_code == 404:
+                    cdn_404_count += 1
+                    if cdn_404_count <= self._CDN_404_MAX:
+                        delay = self._CDN_404_BASE_DELAY + self._CDN_404_DELAY_STEP * (cdn_404_count - 1)
+                        logger.warning(
+                            f"[RETRY] {dir_path} CDN 404 临时故障 | "
+                            f"cdn_404_retry={cdn_404_count}/{self._CDN_404_MAX} "
+                            f"delay={delay}s"
+                        )
+                        # 重建连接以清除可能的坏连接
+                        self.client.close()
+                        self._ensure_client()
+                        time.sleep(delay)
+                        continue  # 重试
+                    else:
+                        logger.error(
+                            f"[RETRY] {dir_path} CDN 404 持续故障 | "
+                            f"已达最大重试次数 {self._CDN_404_MAX}"
+                        )
+                        return {"error": f"CDN 404 错误，已重试{self._CDN_404_MAX}次"}
                 
                 data = safe_json_parse(resp)
                 
