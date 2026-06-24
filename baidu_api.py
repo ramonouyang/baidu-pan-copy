@@ -912,7 +912,7 @@ class BaiduPanAPI:
     _SERVER_ERROR_MAX = 5      # 服务器错误最大重试次数
     _SERVER_ERROR_BASE_DELAY = 3   # 服务器错误首次延迟秒数
     _SERVER_ERROR_DELAY_STEP = 2   # 服务器错误延迟递增秒数（3→5→7→9→11）
-    _CDN_404_MAX = 3           # CDN 404 最大重试次数
+    _CDN_404_MAX = 5           # CDN 404 最大重试次数（对齐 errno=4 重试次数）
     _CDN_404_BASE_DELAY = 5    # CDN 404 首次延迟秒数
     _CDN_404_DELAY_STEP = 5    # CDN 404 延迟递增秒数（5→10→15）
     _RATE_LIMIT_MAX = 3        # errno -62/-9 限流最大重试次数
@@ -1000,6 +1000,13 @@ class BaiduPanAPI:
                 
                 # CDN 404 临时性故障重试（百度 CDN 有时返回 nginx 404 而非 JSON 错误）
                 if resp.status_code == 404:
+                    # 检查是否是分享链接失效（页面不存在）
+                    resp_text = resp.text[:500] if resp.text else ""
+                    if "页面不存在" in resp_text or "分享已过期" in resp_text or "分享已被取消" in resp_text:
+                        logger.error(f"[share] 分享链接已失效: {resp_text[:100]}")
+                        return {"error": "分享链接已失效或被取消", "share_expired": True}
+                    
+                    # CDN 临时故障，重试
                     cdn_404_count += 1
                     if cdn_404_count <= self._CDN_404_MAX:
                         delay = self._CDN_404_BASE_DELAY + self._CDN_404_DELAY_STEP * (cdn_404_count - 1)
@@ -1580,6 +1587,50 @@ class BaiduPanAPI:
                     follow_redirects=True,
                     timeout=60.0
                 )
+                
+                # CDN 404 临时性故障重试（对齐 get_share_children 逻辑）
+                # 百度 CDN 有时返回 nginx 404 而非 JSON 错误
+                if _resp.status_code == 404:
+                    # 检查是否是分享链接失效（页面不存在）
+                    resp_text = _resp.text[:500] if _resp.text else ""
+                    if "页面不存在" in resp_text or "分享已过期" in resp_text or "分享已被取消" in resp_text:
+                        logger.error(f"[transfer] 分享链接已失效: {resp_text[:100]}")
+                        return {"success": False, "error": "分享链接已失效或被取消", "errno": -404, "share_expired": True}
+                    
+                    # CDN 临时故障，重试 5 次
+                    cdn_404_count = getattr(self, '_transfer_cdn_404_count', 0) + 1
+                    self._transfer_cdn_404_count = cdn_404_count
+                    _CDN_404_MAX = 5  # 对齐 errno=4 重试次数
+                    _CDN_404_BASE_DELAY = 5
+                    _CDN_404_DELAY_STEP = 5
+                    if cdn_404_count <= _CDN_404_MAX:
+                        delay = _CDN_404_BASE_DELAY + _CDN_404_DELAY_STEP * (cdn_404_count - 1)
+                        logger.warning(
+                            f"[RETRY] 转存 CDN 404 临时故障 | "
+                            f"cdn_404_retry={cdn_404_count}/{_CDN_404_MAX} "
+                            f"delay={delay}s"
+                        )
+                        # 重建连接以清除可能的坏连接
+                        self.client.close()
+                        self._ensure_client()
+                        # 刷新 bdstoken（可能过期导致 404）
+                        self._bdstoken_cache = ""  # 清除缓存
+                        bdstoken = self._get_bdstoken()
+                        params["bdstoken"] = bdstoken
+                        time.sleep(delay)
+                        continue  # 重试
+                    else:
+                        logger.error(
+                            f"[RETRY] 转存 CDN 404 持续故障 | "
+                            f"已达最大重试次数 {_CDN_404_MAX}"
+                        )
+                        self._transfer_cdn_404_count = 0  # 重置计数
+                        return {"success": False, "error": f"CDN 404 错误，已重试{_CDN_404_MAX}次", "errno": -404}
+                
+                # 404 重试成功，重置计数
+                if hasattr(self, '_transfer_cdn_404_count'):
+                    self._transfer_cdn_404_count = 0
+                
                 result = safe_json_parse(_resp)
                 logger.debug("[transfer] 响应: status=%d, errno=%s, 完整响应=%s", _resp.status_code, result.get('errno'), result)
                 

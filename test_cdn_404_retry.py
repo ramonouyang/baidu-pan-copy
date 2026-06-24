@@ -60,8 +60,24 @@ class TestCDN404Retry(unittest.TestCase):
         
         self.assertIn("error", result)
         self.assertIn("CDN 404", result["error"])
-        # 初始调用 + 3 次重试 = 4 次
-        self.assertEqual(self.api.client.get.call_count, 4)
+        # 初始调用 + 5 次重试 = 6 次
+        self.assertEqual(self.api.client.get.call_count, 6)
+    
+    def test_404_share_expired(self):
+        """分享链接失效 - 页面包含'页面不存在'"""
+        mock_404 = MagicMock(status_code=404)
+        mock_404.text = '<html><head><title>页面不存在</title></head><body>啊哦，你所访问的页面不存在了。</body></html>'
+        mock_404.url = ''
+        
+        self.api.client.get.return_value = mock_404
+        
+        result = self.api.get_share_children("surl", "/dir")
+        
+        self.assertIn("error", result)
+        self.assertIn("分享链接已失效", result["error"])
+        self.assertTrue(result.get("share_expired"))
+        # 分享失效不应重试
+        self.assertEqual(self.api.client.get.call_count, 1)
     
     def test_normal_api_error_no_retry(self):
         """普通 API 错误不重试"""

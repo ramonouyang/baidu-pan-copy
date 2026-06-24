@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.20"
+__version__ = "1.1.21"
 import json
 import time
 import sqlite3
@@ -1346,6 +1346,14 @@ async def start_task(task_id: str, req: ConfirmRequest):
                                 task["error"] = f"Cookie 已失效，已保存断点（已完成 {completed_count}/{files_found}），请重新设置 cookie 后重启"
                                 _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
                                 return
+                            elif errno == -404:
+                                # CDN 404 持续故障 — 可能是分享链接过期或 CDN 问题
+                                add_task_log(task_id, "log.batch_cdn_404", "ERROR", batch=batch_num, error=error)
+                                _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                                task["status"] = "paused"
+                                task["error"] = f"CDN 404 持续故障，已保存断点（已完成 {completed_count}/{files_found}）。可能原因：1) 分享链接已过期 2) CDN 临时故障。请检查分享链接是否有效后重新启动"
+                                _update_task_db(task_id, "paused", completed_count, failed_count + batch_failed, files_found, error=task["error"])
+                                return
                             elif errno in (2, 12, 1504):
                                 # 文件名非法或过长 — 逐个转存
                                 add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num, error=error)
@@ -1818,6 +1826,15 @@ async def recover_task(task_id: str, request: Request):
                             task["status"] = "error"
                             task["error"] = f"Cookie 已失效，请重新设置 cookie"
                             _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
+                            return
+                        elif errno == -404:
+                            # CDN 404 持续故障 — 可能是分享链接过期或 CDN 问题
+                            error = transfer_result.get("error", "CDN 404 错误")
+                            add_task_log(task_id, "log.batch_cdn_404", "ERROR", batch=batch_num, error=error)
+                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
+                            task["status"] = "paused"
+                            task["error"] = f"CDN 404 持续故障，已保存断点（已完成 {completed_count}/{files_found}）。请检查分享链接是否有效后重新启动"
+                            _update_task_db(task_id, "paused", completed_count, failed_count + batch_failed, files_found, error=task["error"])
                             return
                 
                 completed_count += batch_success
