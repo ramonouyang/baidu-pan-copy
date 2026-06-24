@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.24"
+__version__ = "1.1.25"
 import json
 import time
 import sqlite3
@@ -141,10 +141,10 @@ def recover_orphan_tasks():
     try:
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        # 查找所有非终态任务
+        # 查找所有非终态任务（不包括 ready — ready 表示解析完成、从未转存，不是孤儿）
         c.execute("""
             SELECT id, share_link, target_path, status, checkpoint, completed_files, total_files
-            FROM tasks WHERE status IN ('running', 'paused', 'ready')
+            FROM tasks WHERE status IN ('running', 'paused')
         """)
         orphans = c.fetchall()
         conn.close()

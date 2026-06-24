@@ -14,7 +14,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
-## [1.1.24] - 2026-06-24
+## [1.1.25] - 2026-06-24
 
 ### Fixed
 - DTS2026062449182: 重复任务弹窗关闭时 Promise 未 resolve，导致解析按钮卡在"解析中"
