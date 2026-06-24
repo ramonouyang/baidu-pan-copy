@@ -900,6 +900,9 @@ class BaiduPanAPI:
     _CDN_404_MAX = 3           # CDN 404 最大重试次数
     _CDN_404_BASE_DELAY = 5    # CDN 404 首次延迟秒数
     _CDN_404_DELAY_STEP = 5    # CDN 404 延迟递增秒数（5→10→15）
+    _RATE_LIMIT_MAX = 3        # errno -62/-9 限流最大重试次数
+    _RATE_LIMIT_BASE_DELAY = 60  # 限流首次延迟秒数（百度限流持续 30-60+ 分钟）
+    _RATE_LIMIT_DELAY_STEP = 60  # 限流延迟递增秒数（60→120→180）
     
     def get_share_children(self, surl: str, dir_path: str = "/", parent_child_count: int = 0) -> dict:
         """获取分享目录的直接子项（带超时重试，最多10次，线性递增）
@@ -947,6 +950,7 @@ class BaiduPanAPI:
         
         last_error = None
         cdn_404_count = 0  # CDN 404 重试计数
+        rate_limit_count = 0  # errno -62/-9 限流重试计数
         for attempt in range(start_attempt, self._RETRY_MAX):
             timeout = self._RETRY_BASE_TIMEOUT + self._RETRY_TIMEOUT_STEP * attempt
             req_start = time.time()
@@ -1010,8 +1014,23 @@ class BaiduPanAPI:
                 
                 errno = data.get("errno", -1)
                 if errno in (-62, -9):
+                    rate_limit_count += 1
                     _global_limiter.report_rate_limit(cooldown=60.0)
-                    return {"error": "请求过于频繁，请稍后重试", "error_code": -62}
+                    if rate_limit_count <= self._RATE_LIMIT_MAX:
+                        delay = self._RATE_LIMIT_BASE_DELAY + self._RATE_LIMIT_DELAY_STEP * (rate_limit_count - 1)
+                        logger.warning(
+                            f"[RETRY] {dir_path} 请求过于频繁(errno={errno}) | "
+                            f"rate_limit_retry={rate_limit_count}/{self._RATE_LIMIT_MAX} "
+                            f"delay={delay}s"
+                        )
+                        time.sleep(delay)
+                        continue  # 重试
+                    else:
+                        logger.error(
+                            f"[RETRY] {dir_path} 限流持续 | "
+                            f"已达最大重试次数 {self._RATE_LIMIT_MAX}"
+                        )
+                        return {"error": "请求过于频繁，多次等待后仍被限流", "error_code": -62}
                 if errno != 0:
                     error_msg = self._handle_error(errno, data.get("errmsg", ""))
                     return {"error": error_msg}
