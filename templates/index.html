@@ -2379,6 +2379,7 @@
                 
                 async parseShareLink() {
                     this.parsing = true;
+                    this.transferring = false;  // 防止残留的 transferring 状态污染新任务
                     this.previewData = null;
                     this.parseProgress = { status: 'verifying', dirs_scanned: 0, files_found: 0 };
                     this.parseStartTime = Date.now();
@@ -2748,7 +2749,7 @@
                                 this.transferring = false;  // 需要确认时重置，让用户可以操作
                             }
                             
-                            if (data.status === 'completed' || data.status === 'error' || data.status === 'recoverable') {
+                            if (data.status === 'completed' || data.status === 'error' || data.status === 'recoverable' || data.status === 'cancelled' || data.status === 'paused') {
                                 clearInterval(this.progressTimer);
                                 this.progressTimer = null;
                                 this.transferring = false;  // 转存结束，重置按钮状态
@@ -2804,6 +2805,11 @@
                         
                         // 立即更新前端状态
                         this.progress.status = 'cancelled';
+                        this.transferring = false;
+                        if (this.progressTimer) {
+                            clearInterval(this.progressTimer);
+                            this.progressTimer = null;
+                        }
                         
                         // 显示警告信息
                         alert(this.t('progress.cancel_warning'));
@@ -3213,6 +3219,11 @@
                         this.historyTasks = [];
                         this.currentTask = null;
                         this.progress = { status: 'idle', total: 0, completed: 0, failed: 0, failed_files: [], logs: [] };
+                        this.transferring = false;
+                        if (this.progressTimer) {
+                            clearInterval(this.progressTimer);
+                            this.progressTimer = null;
+                        }
                         alert(data.message || this.t('alert.cleared'));
                     } catch (e) {
                         alert(this.t('alert.clear_failed') + e.message);
@@ -3440,10 +3451,15 @@
                         if (resp.ok) {
                             // 从列表中移除
                             this.historyTasks = this.historyTasks.filter(t => t.id !== taskId);
-                            // 如果删除的是当前任务，清空进度
+                            // 如果删除的是当前任务，清空进度和转存状态
                             if (this.currentTask === taskId) {
                                 this.currentTask = null;
                                 this.progress = { status: 'idle', total: 0, completed: 0, failed: 0, failed_files: [], logs: [] };
+                                this.transferring = false;
+                                if (this.progressTimer) {
+                                    clearInterval(this.progressTimer);
+                                    this.progressTimer = null;
+                                }
                             }
                             alert(data.message || this.t('history.delete_success'));
                         } else {

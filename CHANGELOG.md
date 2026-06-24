@@ -14,6 +14,32 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
+## [1.1.23] - 2026-06-24
+
+### Fixed
+- DTS2026062448713: 前端状态机泄漏 — 取消/删除任务后 transferring 和 progressTimer 未重置
+- cancelTask/deleteTask/clearAllTasks 补充 transferring=false + 清除 progressTimer
+- progressTimer 终止条件新增 cancelled/paused
+- parseShareLink 开头重置 transferring 防御性保护
+
+## [1.1.22] - 2026-06-24
+
+### Added
+- DTS2026062463224: 恢复任务跳过BFS — 从DB加载已收集文件列表
+- 文件列表持久化：每5批保存一次到DB
+- _recovery_transfer_from_file_list()：直接从文件列表转存
+
+### Changed
+- 恢复逻辑优先从DB加载file_list，为空才走BFS
+
+## [1.1.21] - 2026-06-24
+
+### Fixed
+- DTS2026062463224: CDN 404 错误不重试导致转存失败
+- transfer_files 遇到 nginx 404 重试5次
+- 区分CDN临时404和分享链接过期
+- errno=-404 任务状态设为 paused（可恢复）
+
 ## [1.1.20] - 2026-06-24
 
 ### 新增
