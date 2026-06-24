@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.21"
+__version__ = "1.1.22"
 import json
 import time
 import sqlite3
@@ -318,6 +318,32 @@ def _clear_checkpoint(task_id):
     except Exception as e:
         logger.error(f"清除断点失败: {e}")
 
+
+def _save_file_list(task_id, file_list):
+    """Save collected file list to DB for recovery skip BFS"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE tasks SET file_list = ?, updated_at = ? WHERE id = ?",
+                  (json.dumps(file_list, ensure_ascii=False), datetime.now().isoformat(), task_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"save file_list failed: {e}")
+
+def _load_file_list(task_id) -> list:
+    """Load collected file list from DB"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT file_list FROM tasks WHERE id = ?", (task_id,))
+        row = c.fetchone()
+        conn.close()
+        if row and row[0] and row[0] not in ('[]', '{}', ''):
+            return json.loads(row[0])
+    except Exception as e:
+        logger.error(f"load file_list failed: {e}")
+    return []
 
 def _update_task_db(task_id, status, completed, failed, total, error=""):
     """更新任务状态到DB"""
@@ -1226,6 +1252,8 @@ async def start_task(task_id: str, req: ConfirmRequest):
                 # ===== 阶段3：流水线 — 收集一批 → 转存一批 =====
                 add_task_log(task_id, "log.pipeline_start", batch_size=BATCH_SIZE)
                 
+                accumulated_file_list = []  # 累积文件列表，用于持久化
+                
                 for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
                     while task.get("paused"):
                         time.sleep(1)
@@ -1249,6 +1277,11 @@ async def start_task(task_id: str, req: ConfirmRequest):
                         _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
                         _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
                         return
+                    
+                    # 持久化文件列表（用于恢复时跳过BFS）
+                    accumulated_file_list.extend(files)
+                    if batch_num % 5 == 0:  # 每5批保存一次，减少DB写入频率
+                        _save_file_list(task_id, accumulated_file_list)
                     
                     # 过滤已转存文件
                     remaining = [f for f in files if f.get("fs_id") and f["fs_id"] not in transferred_fs_ids]
@@ -1711,6 +1744,111 @@ async def recover_task(task_id: str, request: Request):
     task = active_tasks[task_id]
     BATCH_SIZE = 100
     
+    def _recovery_transfer_from_file_list(task_id, task, api, file_list, transferred_fs_ids,
+                                           completed_count, failed_count, transfer_start_ts,
+                                           share_id, uk, target_path, pwd, share_link, surl, total_files):
+        """从已保存的文件列表直接转存（跳过BFS收集）"""
+        remaining = [f for f in file_list if f.get("fs_id") and f["fs_id"] not in transferred_fs_ids]
+        skipped = len(file_list) - len(remaining)
+        logger.info(f"[恢复转存] 总文件={len(file_list)}, 已转存={len(transferred_fs_ids)}, 跳过={skipped}, 待转存={len(remaining)}")
+        add_task_log(task_id, "log.recovery_transfer_start", total=len(file_list), skipped=skipped, remaining=len(remaining))
+        
+        batch_num = 0
+        for i in range(0, len(remaining), BATCH_SIZE):
+            batch_files = remaining[i:i + BATCH_SIZE]
+            batch_num += 1
+            
+            while task.get("paused"):
+                time.sleep(1)
+            if task.get("cancelled"):
+                add_task_log(task_id, "log.cancel_stopped", "WARNING")
+                return
+            
+            # 按目录分组
+            dir_groups = {}
+            for f in batch_files:
+                parent_dir = "/".join(f.get("path", "").split("/")[:-1]) or "/"
+                dir_groups.setdefault(parent_dir, []).append({"path": f.get("path", ""), "fs_id": f.get("fs_id")})
+            
+            batch_success = 0
+            batch_failed = 0
+            
+            for parent_dir, group_items in dir_groups.items():
+                target_subdir = target_path if parent_dir == "/" else f"{target_path}/{parent_dir.lstrip('/')}"
+                
+                if not api.check_file_exists(target_subdir):
+                    mkdir_result = api.create_dir(target_subdir)
+                    if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
+                        logger.warning(f"创建目标子目录失败: {target_subdir}")
+                
+                transfer_result = api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link)
+                
+                if transfer_result.get("success"):
+                    batch_success += len(group_items)
+                    for f in batch_files:
+                        fs_id = f.get("fs_id")
+                        if fs_id:
+                            transferred_fs_ids.add(fs_id)
+                else:
+                    errno = transfer_result.get("errno", 0)
+                    batch_failed += len(group_items)
+                    error = transfer_result.get("error", "未知错误")
+                    
+                    if errno in (-62, -9):
+                        add_task_log(task_id, "log.batch_rate_limited", "ERROR", batch=batch_num, errno=errno)
+                        _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
+                        task["status"] = "error"
+                        task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{total_files}）"
+                        _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, total_files, error=task["error"])
+                        return
+                    elif errno in (-3, -4):
+                        add_task_log(task_id, "log.batch_cookie_expired", "ERROR", batch=batch_num, errno=errno)
+                        _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
+                        task["status"] = "error"
+                        task["error"] = f"Cookie 已失效，请重新设置 cookie"
+                        _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, total_files, error=task["error"])
+                        return
+                    elif errno == -404:
+                        add_task_log(task_id, "log.batch_cdn_404", "ERROR", batch=batch_num, error=error)
+                        _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
+                        task["status"] = "paused"
+                        task["error"] = f"CDN 404 持续故障，已保存断点（已完成 {completed_count}/{total_files}）。请检查分享链接是否有效后重新启动"
+                        _update_task_db(task_id, "paused", completed_count, failed_count + batch_failed, total_files, error=task["error"])
+                        return
+                    elif errno in (2, 12, 1504):
+                        add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num, error=error)
+                        for f in batch_files:
+                            sr = api.transfer_files_with_fallback(share_id, uk, [{"path": f.get("path",""), "fs_id": f.get("fs_id")}], target_subdir, pwd, share_link)
+                            if sr.get("success"):
+                                completed_count += 1
+                                fs_id = f.get("fs_id")
+                                if fs_id:
+                                    transferred_fs_ids.add(fs_id)
+                            else:
+                                failed_count += 1
+                    else:
+                        add_task_log(task_id, "log.batch_failed", "ERROR", batch=batch_num, error=error, errno=errno)
+            
+            completed_count += batch_success
+            failed_count += batch_failed
+            
+            _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
+            elapsed = time.time() - transfer_start_ts
+            task["realtime"] = {"success": completed_count, "failed": failed_count, "total": total_files, "elapsed": round(elapsed, 1)}
+            if (completed_count + failed_count) % 10 == 0:
+                _update_task_db(task_id, "running", completed_count, failed_count, total_files)
+            
+            if batch_success > 0:
+                logger.info(f"[恢复转存] 第{batch_num}批: 成功 {batch_success}, 失败 {batch_failed}")
+        
+        # 完成
+        total_elapsed = time.time() - transfer_start_ts
+        task["status"] = "completed"
+        _update_task_db(task_id, "completed", completed_count, failed_count, total_files)
+        _clear_checkpoint(task_id)
+        add_task_log(task_id, "log.completed", completed=completed_count, failed=failed_count, elapsed=int(total_elapsed))
+        logger.info(f"[恢复转存] 完成: 成功={completed_count}, 失败={failed_count}, 耗时={int(total_elapsed)}s")
+    
     def run_lazy_transfer():
         try:
             add_task_log(task_id, "log.recovered", surl=surl, checkpoint_count=checkpoint_count)
@@ -1740,8 +1878,29 @@ async def recover_task(task_id: str, request: Request):
                 return
             add_task_log(task_id, "log.cookie_valid", user=cookie_check.get('username', 'unknown'))
             
+            # 尝试从DB加载已收集的文件列表（跳过BFS）
+            saved_file_list = _load_file_list(task_id)
+            
+            if saved_file_list:
+                # 有已保存的文件列表，跳过BFS直接转存
+                add_task_log(task_id, "log.recovery_skip_bfs", count=len(saved_file_list))
+                logger.info(f"[恢复] 从DB加载文件列表: {len(saved_file_list)} 个文件，跳过BFS")
+                
+                _recovery_transfer_from_file_list(
+                    task_id, task, api, saved_file_list, transferred_fs_ids,
+                    completed_count, failed_count, transfer_start_ts,
+                    share_id, uk, target_path, pwd, share_link, surl, files_found
+                )
+                return
+            
+            # 没有已保存的文件列表，走BFS收集流程
+            add_task_log(task_id, "log.recovery_bfs_fallback")
+            logger.info(f"[恢复] 无已保存文件列表，走BFS收集流程")
+            
             # 流水线收集+转存
             add_task_log(task_id, "log.pipeline_start", batch_size=BATCH_SIZE)
+            
+            accumulated_file_list = []  # 累积文件列表，用于持久化
             
             for batch in api.collect_files_batch(surl, batch_size=BATCH_SIZE):
                 while task.get("paused"):
@@ -1764,6 +1923,11 @@ async def recover_task(task_id: str, request: Request):
                     _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
                     _update_task_db(task_id, "error", completed_count, failed_count, files_found, error=task["error"])
                     return
+                
+                # 持久化文件列表（用于下次恢复时跳过BFS）
+                accumulated_file_list.extend(files)
+                if batch_num % 5 == 0:
+                    _save_file_list(task_id, accumulated_file_list)
                 
                 remaining = [f for f in files if f.get("fs_id") and f["fs_id"] not in transferred_fs_ids]
                 skipped = len(files) - len(remaining)
