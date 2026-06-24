@@ -1139,10 +1139,10 @@
             </div>
         </div>
 
-    <!-- 重复任务检测弹窗 -->
+            <!-- 重复任务检测弹窗 -->
     <div x-show="showDuplicateModal" x-cloak
          class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-         @click.self="showDuplicateModal = false">
+         @click.self="if(duplicateResolve) duplicateResolve('cancel'); showDuplicateModal = false">
         <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-800">
@@ -1153,7 +1153,7 @@
                     <span x-show="duplicateTaskInfo.status === 'completed'">✅ <span x-text="t('duplicate.completed')">该任务已完成</span></span>
                     <span x-show="['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)">🔄 <span x-text="t('duplicate.running')">该任务正在运行中</span></span>
                 </h3>
-                <button @click="showDuplicateModal = false" class="text-gray-400 hover:text-gray-600">
+                <button @click="if(duplicateResolve) duplicateResolve('cancel'); showDuplicateModal = false" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -1197,7 +1197,7 @@
             
             <!-- 按钮 -->
             <div class="flex justify-end space-x-3">
-                <button @click="showDuplicateModal = false"
+                <button @click="if(duplicateResolve) duplicateResolve('cancel'); showDuplicateModal = false"
                         class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                     <span x-text="t('duplicate.cancel')">取消</span>
                 </button>
@@ -1212,7 +1212,7 @@
                     <span x-text="t('duplicate.recreate')">重新创建</span>
                 </button>
                 <button x-show="duplicateTaskInfo.status === 'completed' || ['running', 'ready', 'pending'].includes(duplicateTaskInfo.status)"
-                        @click="showDuplicateModal = false"
+                        @click="if(duplicateResolve) duplicateResolve('cancel'); showDuplicateModal = false"
                         class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors">
                     <span x-text="t('duplicate.confirm')">确定</span>
                 </button>
