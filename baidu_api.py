@@ -696,7 +696,8 @@ class BaiduPanAPI:
                 
                 # verify 重试逻辑：外层=限流重试(60/120/180s)，内层=网络重试(3次)
                 _rate_limit_count = 0
-                while _rate_limit_count <= 3:
+                _RATE_LIMIT_VERIFY_MAX = 5
+                while _rate_limit_count <= _RATE_LIMIT_VERIFY_MAX:
                     verify_resp = None
                     verify_data = None
                     _VERIFY_RETRIES = 3
@@ -770,16 +771,16 @@ class BaiduPanAPI:
                         # 频率限制 — 重试（BDCLND过期后必须re-verify，否则转存全部失败）
                         _rate_limit_count += 1
                         _global_limiter.report_rate_limit(cooldown=60.0)
-                        if _rate_limit_count <= 3:
+                        if _rate_limit_count <= _RATE_LIMIT_VERIFY_MAX:
                             _delay = 60 + 60 * (_rate_limit_count - 1)
                             logger.warning(
                                 f"[BDCLND] verify 限流(errno={errno}) | "
-                                f"rate_limit_retry={_rate_limit_count}/3 delay={_delay}s"
+                                f"rate_limit_retry={_rate_limit_count}/{_RATE_LIMIT_VERIFY_MAX} delay={_delay}s"
                             )
                             time.sleep(_delay)
                             continue  # 重新 verify（外层 while）
                         else:
-                            logger.error(f"[BDCLND] verify 限流持续，已达最大重试次数 3")
+                            logger.error(f"[BDCLND] verify 限流持续，已达最大重试次数 {_RATE_LIMIT_VERIFY_MAX}")
                             return {"error": "请求过于频繁，多次等待后仍被限流", "error_code": -62}
                     elif errno != 0:
                         error_msg = self._handle_error(errno, verify_data.get("errmsg", ""))
