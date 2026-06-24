@@ -886,6 +886,14 @@ class BaiduPanAPI:
                 headers=self._share_headers(),
                 follow_redirects=True
             )
+            
+            # CDN 404 检查（HTTP 200 + 404 HTML body）
+            resp_text = resp.text[:500] if resp.text else ""
+            if resp.status_code == 404 or "404 Not Found" in resp_text:
+                if "页面不存在" in resp_text or "分享已过期" in resp_text or "分享已被取消" in resp_text:
+                    return {"error": "分享链接已失效或被取消", "share_expired": True}
+                return {"error": "CDN 404 临时故障，请重试"}
+            
             data = safe_json_parse(resp)
             
             if "error" in data:

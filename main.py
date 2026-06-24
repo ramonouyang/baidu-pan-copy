@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.26"
+__version__ = "1.1.27"
 import json
 import time
 import sqlite3
@@ -1974,6 +1974,7 @@ async def recover_task(task_id: str, request: Request):
                             if fs_id:
                                 transferred_fs_ids.add(fs_id)
                     else:
+                        error = transfer_result.get("error", "未知错误")
                         errno = transfer_result.get("errno", 0)
                         batch_failed += len(group_items)
                         
@@ -2000,6 +2001,23 @@ async def recover_task(task_id: str, request: Request):
                             task["error"] = f"CDN 404 持续故障，已保存断点（已完成 {completed_count}/{files_found}）。请检查分享链接是否有效后重新启动"
                             _update_task_db(task_id, "paused", completed_count, failed_count + batch_failed, files_found, error=task["error"])
                             return
+                        elif errno in (2, 12, 1504):
+                            # 文件名非法或过长 — 逐个转存
+                            add_task_log(task_id, "log.batch_errno2", "WARN", batch=batch_num, error=error)
+                            for f in remaining:
+                                sr = api.transfer_files_with_fallback(share_id, uk, [{"path": f.get("path",""), "fs_id": f.get("fs_id")}], target_subdir, pwd, share_link)
+                                if sr.get("success"):
+                                    completed_count += 1
+                                    fs_id = f.get("fs_id")
+                                    if fs_id:
+                                        transferred_fs_ids.add(fs_id)
+                                else:
+                                    failed_count += 1
+                                    fname = f.get("path","").split("/")[-1]
+                                    logger.warning(f"[selected] 单文件失败: {fname} errno={sr.get('errno','?')}")
+                                    add_task_log(task_id, "log.single_file_failed", "WARN", name=fname, errno=sr.get('errno', '?'))
+                        else:
+                            add_task_log(task_id, "log.batch_failed", "ERROR", batch=batch_num, error=error, errno=errno)
                 
                 completed_count += batch_success
                 failed_count += batch_failed
