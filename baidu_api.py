@@ -694,84 +694,98 @@ class BaiduPanAPI:
                 old_bdclnd = self._bdclnd_cache.get(surl, "")
                 logger.info(f"[BDCLND] 重新verify: surl={surl}, 原因={reason}, 旧值={old_bdclnd[:20] if old_bdclnd else '无'}...")
                 
-                # verify 重试逻辑（最多3次，递增超时，应对SSL EOF/超时）
-                verify_resp = None
-                verify_data = None
-                _VERIFY_RETRIES = 3
-                _VERIFY_BASE_TIMEOUT = 30
-                for _verify_attempt in range(_VERIFY_RETRIES):
-                    _verify_timeout = _VERIFY_BASE_TIMEOUT + _verify_attempt * 15
-                    try:
-                        _global_limiter.acquire(timeout=30.0)
-                        verify_params = {
-                            "app_id": self.APP_ID,
-                            "surl": surl,
-                            "channel": "chunlei",
-                            "web": "1",
-                            "bdstoken": "",
-                            "logid": "",
-                            "clienttype": "0",
-                            "t": str(int(_time.time() * 1000))
-                        }
-                        verify_resp = self.client.post(
-                            self.SHARE_VERIFY_URL,
-                            params=verify_params,
-                            data={"pwd": pwd},
-                            headers=self.headers,
-                            follow_redirects=True,
-                            timeout=float(_verify_timeout)
-                        )
-                        verify_data = safe_json_parse(verify_resp)
-                        break  # 成功，跳出重试
-                    except (httpx.TimeoutException, httpx.RemoteProtocolError, httpx.ConnectError) as _verify_exc:
-                        logger.warning(f"[BDCLND] verify 第{_verify_attempt+1}次失败: {type(_verify_exc).__name__}: {_verify_exc}")
-                        if _verify_attempt < _VERIFY_RETRIES - 1:
-                            # 重建 client 以清除可能的坏连接
-                            self.client.close()
-                            self.client = httpx.Client(headers=self.headers, timeout=float(_verify_timeout))
-                            import time as _sleep_time
-                            _sleep_time.sleep(1 + _verify_attempt)
-                        else:
-                            raise
-                if verify_resp is None or verify_data is None:
-                    return {"error": "verify请求失败，请重试"}
-                
-                # 提取 BDCLND cookie
-                self.bdclnd = verify_resp.cookies.get("BDCLND", "")
+                # verify 重试逻辑：外层=限流重试(60/120/180s)，内层=网络重试(3次)
+                _rate_limit_count = 0
+                while _rate_limit_count <= 3:
+                    verify_resp = None
+                    verify_data = None
+                    _VERIFY_RETRIES = 3
+                    _VERIFY_BASE_TIMEOUT = 30
+                    for _verify_attempt in range(_VERIFY_RETRIES):
+                        _verify_timeout = _VERIFY_BASE_TIMEOUT + _verify_attempt * 15
+                        try:
+                            _global_limiter.acquire(timeout=30.0)
+                            verify_params = {
+                                "app_id": self.APP_ID,
+                                "surl": surl,
+                                "channel": "chunlei",
+                                "web": "1",
+                                "bdstoken": "",
+                                "logid": "",
+                                "clienttype": "0",
+                                "t": str(int(_time.time() * 1000))
+                            }
+                            verify_resp = self.client.post(
+                                self.SHARE_VERIFY_URL,
+                                params=verify_params,
+                                data={"pwd": pwd},
+                                headers=self.headers,
+                                follow_redirects=True,
+                                timeout=float(_verify_timeout)
+                            )
+                            verify_data = safe_json_parse(verify_resp)
+                            break  # 成功，跳出网络重试
+                        except (httpx.TimeoutException, httpx.RemoteProtocolError, httpx.ConnectError) as _verify_exc:
+                            logger.warning(f"[BDCLND] verify 第{_verify_attempt+1}次失败: {type(_verify_exc).__name__}: {_verify_exc}")
+                            if _verify_attempt < _VERIFY_RETRIES - 1:
+                                # 重建 client 以清除可能的坏连接
+                                self.client.close()
+                                self.client = httpx.Client(headers=self.headers, timeout=float(_verify_timeout))
+                                import time as _sleep_time
+                                _sleep_time.sleep(1 + _verify_attempt)
+                            else:
+                                raise
+                    if verify_resp is None or verify_data is None:
+                        return {"error": "verify请求失败，请重试"}
+                    
+                    # 提取 BDCLND cookie
+                    self.bdclnd = verify_resp.cookies.get("BDCLND", "")
 
-                # BaiduPCS-Py 用 _cookies_update(resp.cookies.get_dict()) 自动管理
-                # self.client.post() 会自动携带 cookie jar 中的所有 cookie
-                if self.bdclnd:
-                    self._set_bdclnd_cookie(self.bdclnd)
-                logger.info(f"[BDCLND] verify响应: surl={surl}, errno={verify_data.get('errno', '?')}, 新bdclnd={self.bdclnd[:20] if self.bdclnd else '空'}..., Set-Cookie数={len(verify_resp.headers.get_list('set-cookie'))}")
-                
-                if "error" in verify_data:
-                    return verify_data
-                
-                errno = verify_data.get("errno", 0)
-                if errno == -21:
-                    return {"error": "提取码错误"}
-                elif errno == -19:
-                    return {"error": "分享链接已失效"}
-                elif errno == -20:
-                    return {"error": "分享链接已过期"}
-                elif errno == -12:
-                    # 需要验证码 - 提供详细的解决步骤
-                    logger.warning(f"百度网盘要求验证码: surl={surl}")
-                    return {
-                        "error": "需要验证码",
-                        "error_code": -12,
-                        "solution": "请在浏览器中打开分享链接完成验证后重试",
-                        "share_link": share_link
-                    }
-                elif errno in (-62, -9):
-                    # 频率限制 — 立即返回，不重试（重试会加重限流）
-                    _global_limiter.report_rate_limit(cooldown=60.0)
-                    logger.warning(f"百度频率限制(errno={errno})，不重试，等待用户稍后重试")
-                    return {"error": "请求过于频繁，请等待几分钟后重试", "error_code": -62}
-                elif errno != 0:
-                    error_msg = self._handle_error(errno, verify_data.get("errmsg", ""))
-                    return {"error": error_msg}
+                    # BaiduPCS-Py 用 _cookies_update(resp.cookies.get_dict()) 自动管理
+                    # self.client.post() 会自动携带 cookie jar 中的所有 cookie
+                    if self.bdclnd:
+                        self._set_bdclnd_cookie(self.bdclnd)
+                    logger.info(f"[BDCLND] verify响应: surl={surl}, errno={verify_data.get('errno', '?')}, 新bdclnd={self.bdclnd[:20] if self.bdclnd else '空'}..., Set-Cookie数={len(verify_resp.headers.get_list('set-cookie'))}")
+                    
+                    if "error" in verify_data:
+                        return verify_data
+                    
+                    errno = verify_data.get("errno", 0)
+                    if errno == -21:
+                        return {"error": "提取码错误"}
+                    elif errno == -19:
+                        return {"error": "分享链接已失效"}
+                    elif errno == -20:
+                        return {"error": "分享链接已过期"}
+                    elif errno == -12:
+                        # 需要验证码 - 提供详细的解决步骤
+                        logger.warning(f"百度网盘要求验证码: surl={surl}")
+                        return {
+                            "error": "需要验证码",
+                            "error_code": -12,
+                            "solution": "请在浏览器中打开分享链接完成验证后重试",
+                            "share_link": share_link
+                        }
+                    elif errno in (-62, -9):
+                        # 频率限制 — 重试（BDCLND过期后必须re-verify，否则转存全部失败）
+                        _rate_limit_count += 1
+                        _global_limiter.report_rate_limit(cooldown=60.0)
+                        if _rate_limit_count <= 3:
+                            _delay = 60 + 60 * (_rate_limit_count - 1)
+                            logger.warning(
+                                f"[BDCLND] verify 限流(errno={errno}) | "
+                                f"rate_limit_retry={_rate_limit_count}/3 delay={_delay}s"
+                            )
+                            time.sleep(_delay)
+                            continue  # 重新 verify（外层 while）
+                        else:
+                            logger.error(f"[BDCLND] verify 限流持续，已达最大重试次数 3")
+                            return {"error": "请求过于频繁，多次等待后仍被限流", "error_code": -62}
+                    elif errno != 0:
+                        error_msg = self._handle_error(errno, verify_data.get("errmsg", ""))
+                        return {"error": error_msg}
+                    else:
+                        break  # errno=0 成功，跳出限流重试循环
                 
                 # 缓存 BDCLND（覆盖旧值）
                 if self.bdclnd:
