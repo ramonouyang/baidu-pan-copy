@@ -999,9 +999,11 @@ class BaiduPanAPI:
                         return {"error": f"服务器错误 (HTTP {resp.status_code})，已重试{self._SERVER_ERROR_MAX}次"}
                 
                 # CDN 404 临时性故障重试（百度 CDN 有时返回 nginx 404 而非 JSON 错误）
-                if resp.status_code == 404:
+                # 注意：CDN 可能返回 HTTP 200 但 body 是 404 HTML，所以同时检查 body
+                resp_text = resp.text[:500] if resp.text else ""
+                is_cdn_404 = resp.status_code == 404 or "404 Not Found" in resp_text
+                if is_cdn_404:
                     # 检查是否是分享链接失效（页面不存在）
-                    resp_text = resp.text[:500] if resp.text else ""
                     if "页面不存在" in resp_text or "分享已过期" in resp_text or "分享已被取消" in resp_text:
                         logger.error(f"[share] 分享链接已失效: {resp_text[:100]}")
                         return {"error": "分享链接已失效或被取消", "share_expired": True}
@@ -1590,9 +1592,11 @@ class BaiduPanAPI:
                 
                 # CDN 404 临时性故障重试（对齐 get_share_children 逻辑）
                 # 百度 CDN 有时返回 nginx 404 而非 JSON 错误
-                if _resp.status_code == 404:
+                # 注意：CDN 可能返回 HTTP 200 但 body 是 404 HTML，所以同时检查 body
+                resp_text = _resp.text[:500] if _resp.text else ""
+                is_cdn_404 = _resp.status_code == 404 or "404 Not Found" in resp_text
+                if is_cdn_404:
                     # 检查是否是分享链接失效（页面不存在）
-                    resp_text = _resp.text[:500] if _resp.text else ""
                     if "页面不存在" in resp_text or "分享已过期" in resp_text or "分享已被取消" in resp_text:
                         logger.error(f"[transfer] 分享链接已失效: {resp_text[:100]}")
                         return {"success": False, "error": "分享链接已失效或被取消", "errno": -404, "share_expired": True}

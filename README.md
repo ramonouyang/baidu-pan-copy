@@ -2,7 +2,7 @@
   <h1 align="center">百度网盘批量转存工具</h1>
   <p align="center">Baidu Pan Batch Transfer Tool</p>
   <p align="center">
-    <img src="https://img.shields.io/badge/version-1.1.25-blue.svg" alt="version">
+    <img src="https://img.shields.io/badge/version-1.1.26-blue.svg" alt="version">
     <img src="https://img.shields.io/badge/python-3.8+-green.svg" alt="python">
     <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="license">
   </p>

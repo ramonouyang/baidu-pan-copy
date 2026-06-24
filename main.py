@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.25"
+__version__ = "1.1.26"
 import json
 import time
 import sqlite3
