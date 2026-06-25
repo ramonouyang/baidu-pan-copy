@@ -14,37 +14,61 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
-## [1.1.27] - 2026-06-24
+## [1.1.27] - 2026-06-25
 
 ### Fixed
-- DTS2026062449182: 重复任务弹窗关闭时 Promise 未 resolve，导致解析按钮卡在"解析中"
-- 弹窗取消/确定/背景点击/X按钮 四个关闭路径都补充 duplicateResolve
+- 举一反三审计：selected 转存路径补齐 errno 2/12/1504 逐文件重试和 else 日志分支
+- 举一反三审计：`get_share_file_list` 补齐 CDN 404 body 检查（与 `get_share_children` 共用同一接口）
+- 三个转存路径（lazy/recovery/selected）错误处理完全对齐
 
-## [1.1.23] - 2026-06-24
+## [1.1.26] - 2026-06-25
 
 ### Fixed
-- DTS2026062448713: 前端状态机泄漏 — 取消/删除任务后 transferring 和 progressTimer 未重置
-- cancelTask/deleteTask/clearAllTasks 补充 transferring=false + 清除 progressTimer
-- progressTimer 终止条件新增 cancelled/paused
-- parseShareLink 开头重置 transferring 防御性保护
+- CDN 返回 HTTP 200 + 404 HTML body 时未触发重试（之前只检查 `status_code == 404`）
+- `get_share_children` 和 `transfer_files` 均增加 body 内容检查：`"404 Not Found" in resp_text`
 
-## [1.1.22] - 2026-06-24
+## [1.1.25] - 2026-06-25
+
+### Fixed
+- `recover_orphan_tasks()` 误将 `ready` 状态任务标记为孤儿并设为 `error`
+- `ready` = 已解析未转存，不属于孤儿任务；从扫描条件中移除
+
+## [1.1.24] - 2026-06-25
+
+### Fixed
+- 重复任务弹窗关闭时 Promise 未 resolve，导致解析按钮永久卡在"解析中"
+- 弹窗四个关闭路径（背景点击/X按钮/取消/确定）均补充 `duplicateResolve`
+
+## [1.1.23] - 2026-06-25
+
+### Fixed
+- 前端状态机泄漏：取消/删除任务后 `transferring` 和 `progressTimer` 未重置
+- `cancelTask`/`deleteTask`/`clearAllTasks` 补充 `transferring=false` + 清除 `progressTimer`
+- `progressTimer` 终止条件新增 `cancelled`/`paused` 状态
+- `parseShareLink` 开头重置 `transferring` 防御性保护
+
+## [1.1.22] - 2026-06-25
 
 ### Added
-- DTS2026062463224: 恢复任务跳过BFS — 从DB加载已收集文件列表
-- 文件列表持久化：每5批保存一次到DB
-- _recovery_transfer_from_file_list()：直接从文件列表转存
+- 恢复任务跳过 BFS：从 DB 加载已收集文件列表，避免重新扫描 18000+ 文件触发限流
+- 文件列表持久化：每 5 批保存一次到 DB
+- `_recovery_transfer_from_file_list()`：直接从文件列表转存
 
 ### Changed
-- 恢复逻辑优先从DB加载file_list，为空才走BFS
+- 恢复逻辑优先从 DB 加载 `file_list`，为空才走 BFS 扫描
 
-## [1.1.21] - 2026-06-24
+## [1.1.21] - 2026-06-25
 
 ### Fixed
-- DTS2026062463224: CDN 404 错误不重试导致转存失败
-- transfer_files 遇到 nginx 404 重试5次
-- 区分CDN临时404和分享链接过期
-- errno=-404 任务状态设为 paused（可恢复）
+- CDN 404 错误不重试导致转存快速失败（原 ef85e808 任务 1142 个文件失败的根因）
+- `transfer_files` 遇到 nginx 404 重试 5 次（含 connection 重建 + bdstoken 刷新）
+- 区分 CDN 临时 404（重试）和分享链接过期（立即失败，`share_expired=True`）
+- `errno=-404` 任务状态设为 `paused`（可恢复），而非 `error`
+
+### Changed
+- 限流重试次数从 3 提升到 5（最长等待约 25 分钟：60→120→180→240→300s）
+- BDCLND verify 增加 errno -62/-9 限流重试
+- 分享链接过期检测：响应 body 包含"页面不存在"/"分享已过期"/"分享已被取消"时立即终止
 
 ## [1.1.20] - 2026-06-24
 
@@ -139,6 +163,62 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.1.27] - 2026-06-25
+
+### Fixed
+- Audit: selected transfer path now handles errno 2/12/1504 (per-file retry) and unknown errors
+- Audit: `get_share_file_list` now checks CDN 404 body content (shares same endpoint as `get_share_children`)
+- All three transfer paths (lazy/recovery/selected) have fully aligned error handling
+
+## [1.1.26] - 2026-06-25
+
+### Fixed
+- CDN returning HTTP 200 with 404 HTML body was not detected (previously only checked `status_code == 404`)
+- Both `get_share_children` and `transfer_files` now check body content: `"404 Not Found" in resp_text`
+
+## [1.1.25] - 2026-06-25
+
+### Fixed
+- `recover_orphan_tasks()` incorrectly marked `ready` status tasks as orphans and set them to `error`
+- `ready` = parsed but never transferred, not an orphan; removed from scan conditions
+
+## [1.1.24] - 2026-06-25
+
+### Fixed
+- Duplicate task modal Promise never resolved on close, causing parse button to permanently show "解析中"
+- All four close paths (backdrop click, X button, cancel, confirm) now call `duplicateResolve`
+
+## [1.1.23] - 2026-06-25
+
+### Fixed
+- Frontend state machine leak: `transferring` and `progressTimer` not reset after cancel/delete task
+- `cancelTask`/`deleteTask`/`clearAllTasks` now reset `transferring=false` and clear `progressTimer`
+- `progressTimer` termination condition extended with `cancelled`/`paused` states
+- `parseShareLink` defensively resets `transferring` at entry
+
+## [1.1.22] - 2026-06-25
+
+### Added
+- Recovery skips BFS: load file list from DB to avoid re-scanning 18,000+ files (which triggers rate limits)
+- File list persistence: saved to DB every 5 batches
+- `_recovery_transfer_from_file_list()`: transfer directly from persisted file list
+
+### Changed
+- Recovery logic prioritizes loading `file_list` from DB; falls back to BFS scan only when empty
+
+## [1.1.21] - 2026-06-25
+
+### Fixed
+- CDN 404 errors not retried, causing rapid transfer failures (root cause of 1,142 file failures in ef85e808)
+- `transfer_files` retries nginx 404 up to 5 times (with connection rebuild + bdstoken refresh)
+- Distinguish CDN temporary 404 (retry) from share link expired (immediate failure with `share_expired=True`)
+- `errno=-404` sets task status to `paused` (recoverable) instead of `error`
+
+### Changed
+- Rate limit retry count increased from 3 to 5 (max wait ~25 min: 60→120→180→240→300s)
+- BDCLND verify now retries on errno -62/-9 rate limits
+- Share link expiration detection: body containing "页面不存在"/"分享已过期"/"分享已被取消" triggers immediate failure
 
 ## [1.1.20] - 2026-06-24
 
