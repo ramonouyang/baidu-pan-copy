@@ -7,14 +7,19 @@
 7|
 8|---
 9|
-10|# 中文
-11|
-12|本项目所有重要更改都将记录在此文件。
-13|
-14|格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-15|并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
-16|
-17|## [1.1.27] - 2026-06-25
+# 中文
+
+本项目所有重要更改都将记录在此文件。
+
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
+并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
+
+## [1.1.28] - 2026-06-25
+
+### Fixed
+- 恢复转存时 `files_found` 未定义错误（从DB加载文件列表时变量未初始化）
+
+## [1.1.27] - 2026-06-25
 18|
 19|### Fixed
 20|- 举一反三审计：selected 转存路径补齐 errno 2/12/1504 逐文件重试和 else 日志分支
@@ -155,19 +160,24 @@
 155|- 自定义目标路径
 156|- 保持目录结构
 157|
-158|---
-159|
-160|# English
-161|
-162|All notable changes to this project will be documented in this file.
-163|
-164|The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-165|and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-166|
-167|## [1.1.27] - 2026-06-25
-168|
-169|### Fixed
-170|- Audit: selected transfer path now handles errno 2/12/1504 (per-file retry) and unknown errors
+---
+
+# English
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.1.28] - 2026-06-25
+
+### Fixed
+- Recovery transfer: `files_found` undefined error when loading file list from DB (variable not initialized)
+
+## [1.1.27] - 2026-06-25
+
+### Fixed
+- Audit: selected transfer path now handles errno 2/12/1504 (per-file retry) and unknown errors
 171|- Audit: `get_share_file_list` now checks CDN 404 body content (shares same endpoint as `get_share_children`)
 172|- All three transfer paths (lazy/recovery/selected) have fully aligned error handling
 173|
