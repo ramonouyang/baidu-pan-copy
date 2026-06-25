@@ -50,10 +50,15 @@ docs/prototype_*.html
 docs/baidu_pan_transfer_research.md
 docs/development_principles.md
 docs/pdf_parsing_design.md
+docs/DTS*.md
+docs/ohos_issue_tracker.md
 run.sh
-
 
 # Internal files (not for distribution)
 *.tracking.md
 _tracking.md
 _utils.py
+lib/
+
+# Test files (internal)
+test_*.py
