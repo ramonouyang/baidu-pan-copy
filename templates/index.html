@@ -824,6 +824,7 @@
                           'bg-green-100 text-green-800': progress.status === 'completed',
                           'bg-red-100 text-red-800': progress.status === 'error',
                           'bg-orange-100 text-orange-800': progress.status === 'recoverable',
+                          'bg-amber-100 text-amber-800': progress.status === 'rate_limited',
                           'bg-gray-100 text-gray-800': progress.status === 'ready',
                           'bg-red-100 text-red-800': progress.status === 'cancelled'
                       }"
@@ -1040,6 +1041,7 @@
                                               'bg-green-100 text-green-800': task.status === 'completed',
                                               'bg-red-100 text-red-800': task.status === 'error',
                                               'bg-yellow-100 text-yellow-800': task.status === 'running' || task.status === 'paused',
+                                              'bg-amber-100 text-amber-800': task.status === 'rate_limited',
                                               'bg-orange-100 text-orange-800': task.status === 'recoverable',
                                               'bg-gray-200 text-gray-600': task.status === 'cancelled',
                                               'bg-gray-100 text-gray-800': true
@@ -1174,6 +1176,7 @@
                     <span class="px-2 py-1 rounded text-xs"
                           :class="{
                               'bg-orange-100 text-orange-800': duplicateTaskInfo.status === 'recoverable',
+                              'bg-amber-100 text-amber-800': duplicateTaskInfo.status === 'rate_limited',
                               'bg-yellow-100 text-yellow-800': duplicateTaskInfo.status === 'paused',
                               'bg-red-100 text-red-800': duplicateTaskInfo.status === 'error',
                               'bg-gray-200 text-gray-600': duplicateTaskInfo.status === 'cancelled',
@@ -1427,7 +1430,10 @@
                 'log.recovery_transfer_start': '开始恢复转存: 总文件={total}, 跳过={skipped}, 待转存={remaining}',
                 'log.collect_failed': '收集失败(第{batch}批): {error}',
                 'log.batch_info': '[流水线] 第{batch}批: {total}文件, {skipped}已跳过, {remaining}待转存',
-                'log.batch_rate_limited': '第{batch}批被限流(errno={errno})，保存断点停止',
+                'log.batch_rate_limited': '第{batch}批被限流(errno={errno})',
+                'log.batch_rate_limit_retry': '第{batch}批限流，自动重试 {attempt}/{max}（每5分钟）',
+                'log.batch_rate_limit_recovered': '第{batch}批限流恢复成功（第{attempt}次重试）',
+                'log.batch_rate_limit_exhausted': '第{batch}批限流持续1小时，放弃重试',
                 'log.batch_cookie_expired': '第{batch}批失败: Cookie 已失效(errno={errno})，请重新设置 cookie 后重启任务',
                 'log.batch_errno2': '第{batch}批: 文件名含非法字符(errno=2)，逐个转存中...',
                 'log.single_file_failed': '  ❌ 单文件失败: {name} (errno={errno})',
@@ -1523,6 +1529,7 @@
                 'status.error': '失败',
                 'status.recoverable': '可恢复',
                 'status.waiting_confirm': '等待确认',
+                'status.rate_limited': '限流等待中',
                 // Tour
                 'tour.welcome_title': '欢迎使用百度网盘批量转存工具！',
                 'tour.welcome_content': '这个工具可以帮助你一键批量转存百度网盘的共享文件。',
@@ -1724,7 +1731,10 @@
                 'log.recovery_transfer_start': 'Recovery transfer: total={total}, skipped={skipped}, pending={remaining}',
                 'log.collect_failed': 'Collection failed (batch {batch}): {error}',
                 'log.batch_info': '[Pipeline] Batch {batch}: {total} files, {skipped} skipped, {remaining} pending',
-                'log.batch_rate_limited': 'Batch {batch} rate limited (errno={errno}), checkpoint saved, stopping',
+                'log.batch_rate_limited': 'Batch {batch} rate limited (errno={errno})',
+                'log.batch_rate_limit_retry': 'Batch {batch} rate limited, auto retry {attempt}/{max} (every 5min)',
+                'log.batch_rate_limit_recovered': 'Batch {batch} recovered from rate limit (attempt {attempt})',
+                'log.batch_rate_limit_exhausted': 'Batch {batch} rate limited for 1 hour, giving up',
                 'log.batch_cookie_expired': 'Batch {batch} failed: Cookie expired (errno={errno}), re-set cookie and restart',
                 'log.batch_errno2': 'Batch {batch}: filename contains invalid chars (errno=2), transferring one by one...',
                 'log.single_file_failed': '  ❌ Single file failed: {name} (errno={errno})',
@@ -1820,6 +1830,7 @@
                 'status.error': 'Failed',
                 'status.recoverable': 'Recoverable',
                 'status.waiting_confirm': 'Awaiting Confirm',
+                'status.rate_limited': 'Rate Limited',
                 // Tour
                 'tour.welcome_title': 'Welcome to Baidu Pan Batch Transfer Tool!',
                 'tour.welcome_content': 'This tool helps you batch transfer shared files from Baidu Pan with one click.',
@@ -2007,7 +2018,8 @@
                         'completed': this.t('status.completed'),
                         'error': this.t('status.error'),
                         'recoverable': this.t('status.recoverable'),
-                        'waiting_confirm': this.t('status.waiting_confirm')
+                        'waiting_confirm': this.t('status.waiting_confirm'),
+                        'rate_limited': this.t('status.rate_limited')
                     };
                 },
                 

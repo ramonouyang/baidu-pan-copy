@@ -1345,7 +1345,13 @@ async def start_task(task_id: str, req: ConfirmRequest):
                             if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
                                 logger.warning(f"创建目标子目录失败: {target_subdir} → {mkdir_result}")
                         
-                        transfer_result = api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link)
+                        transfer_result, should_return = _retry_on_rate_limit(
+                            lambda: api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link),
+                            task_id, task, transferred_fs_ids,
+                            batch_num, completed_count, failed_count, files_found
+                        )
+                        if should_return:
+                            return
                         
                         if transfer_result.get("success"):
                             batch_success += len(group_items)
@@ -1365,14 +1371,7 @@ async def start_task(task_id: str, req: ConfirmRequest):
                             errno = transfer_result.get("errno", 0)
                             batch_failed += len(group_items)
                             
-                            if errno in (-62, -9):
-                                add_task_log(task_id, "log.batch_rate_limited", "ERROR", batch=batch_num, errno=errno)
-                                _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
-                                task["status"] = "error"
-                                task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}），请稍后重新启动"
-                                _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
-                                return
-                            elif errno in (-3, -4):
+                            if errno in (-3, -4):
                                 add_task_log(task_id, "log.batch_cookie_expired", "ERROR", batch=batch_num, errno=errno)
                                 _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
                                 task["status"] = "error"
@@ -1781,7 +1780,13 @@ async def recover_task(task_id: str, request: Request):
                     if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
                         logger.warning(f"创建目标子目录失败: {target_subdir}")
                 
-                transfer_result = api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link)
+                transfer_result, should_return = _retry_on_rate_limit(
+                    lambda: api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link),
+                    task_id, task, transferred_fs_ids,
+                    batch_num, completed_count, failed_count, total_files
+                )
+                if should_return:
+                    return
                 
                 if transfer_result.get("success"):
                     batch_success += len(group_items)
@@ -1794,14 +1799,7 @@ async def recover_task(task_id: str, request: Request):
                     batch_failed += len(group_items)
                     error = transfer_result.get("error", "未知错误")
                     
-                    if errno in (-62, -9):
-                        add_task_log(task_id, "log.batch_rate_limited", "ERROR", batch=batch_num, errno=errno)
-                        _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
-                        task["status"] = "error"
-                        task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{total_files}）"
-                        _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, total_files, error=task["error"])
-                        return
-                    elif errno in (-3, -4):
+                    if errno in (-3, -4):
                         add_task_log(task_id, "log.batch_cookie_expired", "ERROR", batch=batch_num, errno=errno)
                         _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
                         task["status"] = "error"
@@ -1965,7 +1963,13 @@ async def recover_task(task_id: str, request: Request):
                         if not mkdir_result.get("success") and mkdir_result.get("error_code") != -7:
                             logger.warning(f"创建目标子目录失败: {target_subdir}")
                     
-                    transfer_result = api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link)
+                    transfer_result, should_return = _retry_on_rate_limit(
+                        lambda: api.transfer_files_with_fallback(share_id, uk, group_items, target_subdir, pwd, share_link),
+                        task_id, task, transferred_fs_ids,
+                        batch_num, completed_count, failed_count, files_found
+                    )
+                    if should_return:
+                        return
                     
                     if transfer_result.get("success"):
                         batch_success += len(group_items)
@@ -1978,14 +1982,7 @@ async def recover_task(task_id: str, request: Request):
                         errno = transfer_result.get("errno", 0)
                         batch_failed += len(group_items)
                         
-                        if errno in (-62, -9):
-                            add_task_log(task_id, "log.batch_rate_limited", "ERROR", batch=batch_num, errno=errno)
-                            _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
-                            task["status"] = "error"
-                            task["error"] = f"被限流，已保存断点（已完成 {completed_count}/{files_found}）"
-                            _update_task_db(task_id, "error", completed_count, failed_count + batch_failed, files_found, error=task["error"])
-                            return
-                        elif errno in (-3, -4):
+                        if errno in (-3, -4):
                             add_task_log(task_id, "log.batch_cookie_expired", "ERROR", batch=batch_num, errno=errno)
                             _save_checkpoint(task_id, transferred_fs_ids, batch_num, files_found)
                             task["status"] = "error"
@@ -2084,7 +2081,9 @@ async def get_task_progress(task_id: str):
         total_batches = tp.get("total_batches", 0)
         
         # 构造人类可读的当前状态描述
-        if phase == "collecting":
+        if status == "rate_limited":
+            current_action = task.get("error", "限流中，自动重试中...")
+        elif phase == "collecting":
             dir_info = f" → {current_dir}" if current_dir else ""
             current_action = f"正在扫描目录{dir_info}... 已扫描 {dirs_scanned} 个目录，找到 {files_found} 个文件，{api_requests} 次API请求"
         elif phase == "transferring":
