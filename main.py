@@ -1887,7 +1887,7 @@ async def recover_task(task_id: str, request: Request):
                 _recovery_transfer_from_file_list(
                     task_id, task, api, saved_file_list, transferred_fs_ids,
                     completed_count, failed_count, transfer_start_ts,
-                    share_id, uk, target_path, pwd, share_link, surl, files_found
+                    share_id, uk, target_path, pwd, share_link, surl, len(saved_file_list)
                 )
                 return
             
