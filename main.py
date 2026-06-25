@@ -1,5 +1,5 @@
 """FastAPI 主应用 - 增强版"""
-__version__ = "1.1.27"
+__version__ = "1.1.28"
 import json
 import time
 import sqlite3
@@ -360,6 +360,70 @@ def _update_task_db(task_id, status, completed, failed, total, error=""):
         conn.close()
     except Exception as e:
         logger.error(f"更新任务DB失败: {e}")
+
+
+# 限流自动重试配置
+_RATE_LIMIT_POLL_INTERVAL = 300  # 5分钟
+_RATE_LIMIT_POLL_MAX = 12  # 最多12次 = 1小时
+
+
+def _retry_on_rate_limit(transfer_fn, task_id, task, transferred_fs_ids,
+                          batch_num, completed_count, failed_count, total_files):
+    """限流自动重试包装器
+    
+    遇到 errno -62/-9 时，设置任务为 rate_limited 状态，
+    每5分钟自动重试一次，最多12次（1小时）。
+    
+    Args:
+        transfer_fn: 转存函数（无参数调用，返回 transfer result dict）
+    
+    Returns:
+        (result: dict, should_return: bool)
+        should_return=True 表示调用方应立即 return（限流1小时仍失败或非限流错误）
+    """
+    result = transfer_fn()
+    
+    if result.get("success") or result.get("errno") not in (-62, -9):
+        return result, False
+    
+    # 限流 — 进入轮询重试
+    for rl_attempt in range(1, _RATE_LIMIT_POLL_MAX + 1):
+        add_task_log(task_id, "log.batch_rate_limit_retry", "WARN",
+                     batch=batch_num, attempt=rl_attempt, max=_RATE_LIMIT_POLL_MAX)
+        logger.warning(
+            f"[限流重试] batch={batch_num} "
+            f"attempt={rl_attempt}/{_RATE_LIMIT_POLL_MAX} "
+            f"wait={_RATE_LIMIT_POLL_INTERVAL}s"
+        )
+        _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
+        task["status"] = "rate_limited"
+        task["error"] = f"第{batch_num}批被限流，自动重试中（{rl_attempt}/{_RATE_LIMIT_POLL_MAX}，每5分钟）"
+        _update_task_db(task_id, "rate_limited", completed_count, failed_count, total_files, error=task["error"])
+        
+        time.sleep(_RATE_LIMIT_POLL_INTERVAL)
+        
+        result = transfer_fn()
+        if result.get("success"):
+            logger.info(f"[限流重试] batch={batch_num} 第{rl_attempt}次重试成功")
+            add_task_log(task_id, "log.batch_rate_limit_recovered", "INFO",
+                         batch=batch_num, attempt=rl_attempt)
+            task["status"] = "running"
+            task["error"] = ""
+            _update_task_db(task_id, "running", completed_count, failed_count, total_files)
+            return result, False
+        
+        if result.get("errno") not in (-62, -9):
+            return result, False  # 非限流错误，交给调用方处理
+    
+    # 12次重试都限流 — 放弃
+    logger.error(f"[限流重试] batch={batch_num} {_RATE_LIMIT_POLL_MAX}次重试仍限流，放弃")
+    add_task_log(task_id, "log.batch_rate_limit_exhausted", "ERROR", batch=batch_num)
+    _save_checkpoint(task_id, transferred_fs_ids, batch_num, total_files)
+    task["status"] = "error"
+    task["error"] = f"限流持续{_RATE_LIMIT_POLL_MAX * _RATE_LIMIT_POLL_INTERVAL // 60}分钟，已保存断点（已完成 {completed_count}/{total_files}），请稍后恢复"
+    _update_task_db(task_id, "error", completed_count, failed_count, total_files, error=task["error"])
+    return result, True
+
 
 # 全局状态存储
 active_tasks = {}
